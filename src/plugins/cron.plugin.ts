@@ -1,10 +1,12 @@
 import { Elysia, t } from "elysia";
 import { cron as cronPlugin } from "@elysiajs/cron";
+import { JSDOM } from "jsdom";
 import { db } from "@/db";
 import { logger } from "@/logger";
 
 const APP_CHUNK_SIZE = 50;
 const APPDETAIL_TMR_DELAY = 180000; // 3min
+const CHUNK_DELAY = 5000;
 
 interface IGetAppListBody {
   response: {
@@ -19,14 +21,14 @@ interface IGetAppListBody {
   };
 }
 
-type IAppDetailsBody<AppId extends number> = Record<
-  AppId,
+type IAppDetailsBody = Record<
+  number,
   {
     success: boolean;
     data: {
       name: string;
       short_description: string;
-      genres?: { id: `${number}`; description: string }[];
+      genres?: { id: string }[];
       header_image: string;
       release_date: {
         coming_soom: boolean;
@@ -35,6 +37,11 @@ type IAppDetailsBody<AppId extends number> = Record<
     };
   }
 >;
+
+type ISteamCMDBody = {
+  success: boolean;
+  data: Record<number, { common: { steam_release_date?: `${number}` } }>;
+};
 
 interface ISteamSpy {
   appid: number;
@@ -55,45 +62,80 @@ async function parseOwnerCount(owners: string): Promise<number> {
   return parseInt(owners.split(" .. ")[0].split(",").join(""));
 }
 
+async function parseWeb(
+  appid: number,
+): Promise<Omit<
+  IAppDetailsBody[number]["data"],
+  "genre" | "release_date"
+> | null> {
+  const response = await fetch(`https://store.steampowered.com/app/${appid}`, {
+    headers: fetchHeader,
+  });
+  if (
+    !response.ok ||
+    response.headers.get("Content-Type") !== "text/html; charset=UTF-8"
+  ) {
+    fgiLogger.warn(
+      `Steam Store (${appid}) request failed: ${response.status} ${response.statusText}`,
+    );
+    return null;
+  }
+  const { document } = new JSDOM(await response.text()).window;
+  const name = document.querySelector<HTMLMetaElement>(
+    `meta[property="og:title"]`,
+  );
+  const short_description = document.querySelector<HTMLMetaElement>(
+    `meta[name="Description"]`,
+  );
+  const header_image = document.querySelector<HTMLMetaElement>(
+    `meta[property="og:image"]`,
+  );
+  if (!name) {
+    fgiLogger.warn(`Steam Store (${appid}) requrest failed: name not found`);
+    return null;
+  }
+  if (!short_description) {
+    fgiLogger.warn(
+      `Steam Store (${appid}) requrest failed: short_description not found`,
+    );
+    return null;
+  }
+  if (!header_image) {
+    fgiLogger.warn(
+      `Steam Store (${appid}) requrest failed: header_image not found`,
+    );
+    return null;
+  }
+
+  return {
+    name: name.content,
+    short_description: short_description.content,
+    header_image: header_image.content,
+  };
+}
+
 async function saveGameInfo(
   appid: number,
 ): Promise<{ retryable: boolean; appid: number }> {
-  const appDetails = await fetch(
-    `https://store.steampowered.com/api/appdetails?appids=${appid}`,
-  );
-  if (!appDetails.ok) {
-    if (appDetails.status === 429 || appDetails.status === 403) {
-      fgiLogger.debug(
-        {
-          body: appDetails.text,
-          header: Object.fromEntries(appDetails.headers.entries()),
-        },
-        `Rate limited data of app ${appid}`,
-      );
-      fgiLogger.warn(
-        `Rate limited while fetching game ${appid} info: marked it as retryable app, will be retried`,
-      );
-      return { retryable: true, appid };
-    } else {
-      fgiLogger.warn(
-        `HTTP error while fetching game ${appid} info: ${appDetails.status} ${appDetails.statusText}`,
-      );
-    }
+  const appDetails_data = await parseWeb(appid);
+  if (!appDetails_data) {
     return { retryable: false, appid };
   }
-  let appDetails_data: IAppDetailsBody<typeof appid>[typeof appid];
-  try {
-    appDetails_data = (
-      (await appDetails.json()) as IAppDetailsBody<typeof appid>
-    )[appid];
-  } catch (e) {
-    fgiLogger.warn(`Error while parsing json from appDetails: ${e}`);
-    return { retryable: false, appid };
-  }
-  if (!appDetails_data.success) {
+  const SteamCMD = await fetch(`https://api.steamcmd.net/v1/info/${appid}`);
+  if (!SteamCMD.ok) {
     fgiLogger.warn(
-      `HTTP error while fetching game ${appid} info: success fail`,
+      `HTTP error while fetching game ${appid} SteamCMD: ${SteamCMD.status} ${SteamCMD.statusText} (will be retried)`,
     );
+    return { retryable: true, appid };
+  }
+  let SteamCMD_data: ISteamCMDBody;
+  let SteamCMD_releaseDate: `${number}` | undefined;
+  try {
+    SteamCMD_data = (await SteamCMD.json()) as ISteamCMDBody;
+    SteamCMD_releaseDate =
+      SteamCMD_data?.data?.[appid]?.common?.steam_release_date;
+  } catch (e) {
+    fgiLogger.warn(`Erro while parsing json from SteamCMD: ${e}`);
     return { retryable: false, appid };
   }
 
@@ -102,7 +144,7 @@ async function saveGameInfo(
   );
   if (!SteamSpy.ok) {
     fgiLogger.warn(
-      `HTTP error while fetching game ${appid} SteamSpy: ${appDetails.status} ${appDetails.statusText} (will be retried)`,
+      `HTTP error while fetching game ${appid} SteamSpy: ${SteamSpy.status} ${SteamSpy.statusText} (will be retried)`,
     );
     return { retryable: true, appid };
   }
@@ -117,14 +159,18 @@ async function saveGameInfo(
   let baseInfo;
   try {
     baseInfo = {
-      title: appDetails_data.data.name,
-      description: appDetails_data.data.short_description,
-      release_date: appDetails_data.data.release_date.date,
-      thumbnail_src: appDetails_data.data.header_image,
+      title: appDetails_data.name,
+      description: appDetails_data.short_description,
+      release_date: SteamCMD_releaseDate
+        ? new Intl.DateTimeFormat("ko", { dateStyle: "medium" }).format(
+            new Date(parseInt(SteamCMD_releaseDate) * 1000),
+          )
+        : "-",
+      thumbnail_src: appDetails_data.header_image,
       review_negative: SteamSpy_data.negative,
       review_positive: SteamSpy_data.positive,
       owner_count: await parseOwnerCount(SteamSpy_data.owners),
-      genre: appDetails_data.data.genres
+      genre: /*appDetails_data.data.genres
         ? {
             connectOrCreate: appDetails_data.data.genres.map(
               ({ id, description }) => {
@@ -136,7 +182,7 @@ async function saveGameInfo(
               },
             ),
           }
-        : undefined,
+        : */ undefined,
     };
   } catch (e) {
     fgiLogger.error(`Failed to build base information of app ${appid}: ${e}`);
@@ -258,6 +304,8 @@ async function fetchGameInfo(continue_with?: number): Promise<{
           `Delaying ${Math.round(APPDETAIL_TMR_DELAY / 1000)}s after chunk ${idx} due to ${Math.round(chunkFailedAppIds.length / APP_CHUNK_SIZE) * 100}% (${chunkFailedAppIds.length} / ${APP_CHUNK_SIZE}) failed requests (total ${failed_appids.length} request failed), will be continued at ${new Intl.DateTimeFormat(["ko"], { timeStyle: "medium", hour12: false }).format(new Date(new Date().getTime() + APPDETAIL_TMR_DELAY))}.`,
         );
         await timeout(APPDETAIL_TMR_DELAY);
+      } else {
+        await timeout(CHUNK_DELAY);
       }
     } catch (e) {
       fgiLogger.error(`Unexpected error on chunk ${idx}: ${e}`);
