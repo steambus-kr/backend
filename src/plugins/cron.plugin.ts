@@ -1,4 +1,4 @@
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { cron as cronPlugin } from "@elysiajs/cron";
 import { db } from "@/db";
 import { logger } from "@/logger";
@@ -416,9 +416,21 @@ export const cron = new Elysia()
       run() {},
     }),
   )
-  .get("/cron/fetchGameInfo", ({ error }) => {
+  .put("/cron/fetchGameInfo", ({ error }) => {
     if (process.env.NODE_ENV !== "development") {
       error(400);
     }
     fetchGameInfoLooper();
+  })
+  .guard({
+    params: t.Object({
+      id: t.Number(),
+    }),
+  })
+  .put("/cron/fetchGameInfo/:id", ({ error, params: { id } }) => {
+    if (process.env.NODE_ENV !== "development") {
+      // TODO: add admin only allow guard
+      error(400);
+    }
+    saveGameInfo(id);
   });
