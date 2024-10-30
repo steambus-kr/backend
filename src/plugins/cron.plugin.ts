@@ -332,7 +332,7 @@ async function fetchGameInfoLooper() {
   // retry step
   fgiLogger.info(`Starting retry`);
   let retryIteration = 0;
-  const maxRetry = 10;
+  const maxRetry = 20;
   const retryDelay = 180; // in second
   // ideally maximum 1800s (30min)
   while (failed_appids.length > 0) {
