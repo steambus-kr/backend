@@ -8,27 +8,22 @@ if (!existsSync(logRoot)) {
   mkdirSync(logRoot);
 }
 
-const debugStream = createWriteStream(join(logRoot, "debug.stream.out"));
 const logStream = createWriteStream(join(logRoot, "log.stream.out"));
 const errorStream = createWriteStream(join(logRoot, "error.stream.out"));
 
 const stream = pino.multistream([
   {
     level: "debug",
-    stream: debugStream,
-  },
-  {
     stream: logStream,
   },
   {
-    level: "error",
+    level: "warn",
     stream: errorStream,
   },
   {
-    level: "fatal",
-    stream: errorStream,
+    level: "info",
+    stream: pretty({ colorize: true }),
   },
-  pretty({ colorize: true }),
 ]);
 
 export const logger = createPinoLogger({
