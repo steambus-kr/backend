@@ -3,49 +3,43 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model State {
-  id Int @id
+  id                Int       @id @map("_id")
   last_fetched_info DateTime?
 }
 
 model Game {
-  app_id Int @id
-  title String
-  description String
-  owner_count Int
-  release_date DateTime
-  genre Game__Genre[]
-  player_count PlayerCount[]
-  thumbnail_src String
+  app_id          Int           @id @map("_id")
+  title           String
+  description     String
+  owner_count     Int
+  release_date    String
+  genre_ids       Int[]
+  genre           Genre[]       @relation(fields: [genre_ids], references: [genre_id])
+  player_count    PlayerCount[]
+  thumbnail_src   String
   review_positive Int
   review_negative Int
 }
 
 model PlayerCount {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
   app_id Int
-  app Game @relation(fields: [app_id], references: [app_id], onDelete: Cascade)
+  app    Game   @relation(fields: [app_id], references: [app_id], onDelete: Cascade)
 
   count Int
-  date DateTime
+  date  DateTime
 
-  @@id([app_id, date])
-}
-
-model Game__Genre {
-  genre_id Int
-  genre Genre @relation(fields: [genre_id], references: [genre_id], onDelete: Cascade)
-  app_id Int
-  app Game @relation(fields: [app_id], references: [app_id], onDelete: Cascade)
-
-  @@id([genre_id, app_id])
+  @@unique([app_id, date])
 }
 
 model Genre {
-  genre_id Int @id
+  genre_id   Int    @id @map("_id")
   genre_name String
-  games Game__Genre[]
+  app_ids    Int[]
+  games      Game[] @relation(fields: [app_ids], references: [app_id])
 }
