@@ -151,6 +151,19 @@ async function saveGameInfo(
       review_negative: SteamSpy_data.negative,
       review_positive: SteamSpy_data.positive,
       owner_count: await parseOwnerCount(SteamSpy_data.owners),
+      genre: appDetails_data.data.genres
+        ? {
+            connectOrCreate: appDetails_data.data.genres.map(
+              ({ id, description }) => {
+                const genre_id = parseInt(id);
+                return {
+                  where: { genre_id },
+                  create: { genre_id, genre_name: description },
+                };
+              },
+            ),
+          }
+        : undefined,
     };
   } catch (e) {
     fgiLogger.error(`Failed to build base information of app ${appid}: ${e}`);
@@ -165,33 +178,9 @@ async function saveGameInfo(
       create: {
         app_id: appid,
         ...baseInfo,
-        genre: {
-          create: appDetails_data.data.genres
-            ? appDetails_data.data.genres.map(({ id, description }) => {
-                const genre_id = parseInt(id);
-                return {
-                  genre_id,
-                  genre_name: description,
-                };
-              })
-            : undefined,
-        },
       },
       update: {
         ...baseInfo,
-        genre: appDetails_data.data.genres
-          ? {
-              connectOrCreate: appDetails_data.data.genres.map(
-                ({ id, description }) => {
-                  const genre_id = parseInt(id);
-                  return {
-                    where: { genre_id },
-                    create: { genre_id, genre_name: description },
-                  };
-                },
-              ),
-            }
-          : undefined,
       },
     });
   } catch (e) {
@@ -384,6 +373,7 @@ async function fetchGameInfoLooper() {
   const elapsedTime = performance.now() - startTime;
   if (failed_appids.length > 0) {
     fgiLogger.info(
+      failed_appids,
       `fetchGameInfo completed (took ${formatMs(elapsedTime)}), some games are not saved due to error.`,
     );
   } else {
