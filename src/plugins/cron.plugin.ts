@@ -114,33 +114,6 @@ async function saveGameInfo(
     return { retryable: false, appid };
   }
 
-  try {
-    if (appDetails_data.data.genres) {
-      await Promise.all(
-        appDetails_data.data.genres.map(({ id, description }) => {
-          const genre_id = parseInt(id);
-          fgiLogger.debug(
-            `Upserting genre "${description}" ${id} (parseInt -> ${genre_id})`,
-          );
-          return db.genre.upsert({
-            where: {
-              genre_id,
-            },
-            create: {
-              genre_id,
-              genre_name: description,
-            },
-            update: {
-              genre_name: description,
-            },
-          });
-        }),
-      );
-    }
-  } catch (e) {
-    fgiLogger.error(`Genre upserting failed for app ${appid}: ${e}`);
-    return { retryable: false, appid };
-  }
   let baseInfo;
   try {
     baseInfo = {
