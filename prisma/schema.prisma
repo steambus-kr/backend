@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model State {
+  id Int @id
+  last_fetched_info DateTime?
+}
+
+model Game {
+  app_id Int @id
+  title String
+  description String
+  owner_count Int
+  release_date DateTime
+  genre Game__Genre[]
+  player_count PlayerCount[]
+  thumbnail_src String
+  review_positive Int
+  review_negative Int
+}
+
+model PlayerCount {
+  app_id Int
+  app Game @relation(fields: [app_id], references: [app_id], onDelete: Cascade)
+
+  count Int
+  date DateTime
+
+  @@id([app_id, date])
+}
+
+model Game__Genre {
+  genre_id Int
+  genre Genre @relation(fields: [genre_id], references: [genre_id], onDelete: Cascade)
+  app_id Int
+  app Game @relation(fields: [app_id], references: [app_id], onDelete: Cascade)
+
+  @@id([genre_id, app_id])
+}
+
+model Genre {
+  genre_id Int @id
+  genre_name String
+  games Game__Genre[]
+}
