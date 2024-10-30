@@ -282,7 +282,7 @@ async function fetchGameInfo(continue_with?: number): Promise<{
       if (chunkFailedAppIds.length > 0) {
         failed_appids = [...failed_appids, ...chunkFailedAppIds];
         fgiLogger.warn(
-          `Delaying ${Math.round(APPDETAIL_TMR_DELAY / 1000)}s after chunk ${idx} due to failed requests, will be continued at ${new Intl.DateTimeFormat(["ko"], { timeStyle: "medium", hour12: false }).format(new Date(new Date().getTime() + APPDETAIL_TMR_DELAY))}`,
+          `Delaying ${Math.round(APPDETAIL_TMR_DELAY / 1000)}s after chunk ${idx} due to ${Math.round(chunkFailedAppIds.length / APP_CHUNK_SIZE) * 100}% (${chunkFailedAppIds.length} / ${APP_CHUNK_SIZE}) failed requests (total ${failed_appids} request failed), will be continued at ${new Intl.DateTimeFormat(["ko"], { timeStyle: "medium", hour12: false }).format(new Date(new Date().getTime() + APPDETAIL_TMR_DELAY))}.`,
         );
         await timeout(APPDETAIL_TMR_DELAY);
       }
