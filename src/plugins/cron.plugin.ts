@@ -64,7 +64,11 @@ async function parseWeb(
   appid: number,
 ): Promise<Omit<IAppDetailsBody[number]["data"], "release_date"> | null> {
   const response = await fetch(`https://store.steampowered.com/app/${appid}`, {
-    headers: fetchHeader,
+    headers: {
+      ...fetchHeader,
+      Cookie:
+        "wants_mature_content=1; birthtime=946652401; lastagecheckage=1-January-2000",
+    },
   });
   if (
     !response.ok ||
