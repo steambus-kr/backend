@@ -28,7 +28,7 @@ type IAppDetailsBody = Record<
     data: {
       name: string;
       short_description: string;
-      genres?: { id: string }[];
+      genres?: string[];
       header_image: string;
       release_date: {
         coming_soom: boolean;
@@ -64,10 +64,7 @@ async function parseOwnerCount(owners: string): Promise<number> {
 
 async function parseWeb(
   appid: number,
-): Promise<Omit<
-  IAppDetailsBody[number]["data"],
-  "genre" | "release_date"
-> | null> {
+): Promise<Omit<IAppDetailsBody[number]["data"], "release_date"> | null> {
   const response = await fetch(`https://store.steampowered.com/app/${appid}`, {
     headers: fetchHeader,
   });
@@ -88,27 +85,40 @@ async function parseWeb(
   const header_image = document.querySelector<HTMLMetaElement>(
     `meta[property="og:image"]`,
   );
+  const genre_anchors = Array.from(
+    document
+      .querySelectorAll<HTMLAnchorElement>(
+        `div#genresAndManufacturer > span > a[href^="https://store.steampowered.com/genre"]`,
+      )
+      .values(),
+  );
   if (!name) {
-    fgiLogger.warn(`Steam Store (${appid}) requrest failed: name not found`);
+    fgiLogger.warn(`Steam Store (${appid}) request failed: name not found`);
     return null;
   }
   if (!short_description) {
     fgiLogger.warn(
-      `Steam Store (${appid}) requrest failed: short_description not found`,
+      `Steam Store (${appid}) request failed: short_description not found`,
     );
     return null;
   }
   if (!header_image) {
     fgiLogger.warn(
-      `Steam Store (${appid}) requrest failed: header_image not found`,
+      `Steam Store (${appid}) request failed: header_image not found`,
     );
     return null;
+  }
+  if (genre_anchors.length === 0) {
+    fgiLogger.debug(
+      `Steam Store (${appid}) genre parse failed: no genre found`,
+    );
   }
 
   return {
     name: name.innerText,
     short_description: short_description.content,
     header_image: header_image.content,
+    genres: genre_anchors.map((a) => a.innerText),
   };
 }
 
