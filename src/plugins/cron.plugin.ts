@@ -459,7 +459,7 @@ export const cron = new Elysia()
       name: "fetchGameInfo",
       pattern: "0 0 * * * *",
       timezone: "Asia/Seoul",
-      run() {},
+      run: fetchGameInfoLooper,
     }),
   )
   .put("/cron/fetchGameInfo", ({ error }) => {
