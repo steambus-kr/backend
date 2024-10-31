@@ -4,7 +4,7 @@ import { JSDOM } from "jsdom";
 import { db } from "@/db";
 import { fgiLogger } from "@/logger";
 
-const APP_CHUNK_SIZE = 500;
+const APP_CHUNK_SIZE = 100;
 const APPDETAIL_TMR_DELAY = 180000; // 3min
 const CHUNK_DELAY = 5000;
 
