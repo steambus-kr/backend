@@ -178,19 +178,14 @@ async function saveGameInfo(
       review_negative: SteamSpy_data.negative,
       review_positive: SteamSpy_data.positive,
       owner_count: await parseOwnerCount(SteamSpy_data.owners),
-      genre: /*appDetails_data.data.genres
+      genre: appDetails_data.genres
         ? {
-            connectOrCreate: appDetails_data.data.genres.map(
-              ({ id, description }) => {
-                const genre_id = parseInt(id);
-                return {
-                  where: { genre_id },
-                  create: { genre_id, genre_name: description },
-                };
-              },
-            ),
+            connectOrCreate: appDetails_data.genres.map((genre_name) => ({
+              where: { genre_name },
+              create: { genre_name },
+            })),
           }
-        : */ undefined,
+        : undefined,
     };
   } catch (e) {
     fgiLogger.error(`Failed to build base information of app ${appid}: ${e}`);
