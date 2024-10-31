@@ -81,9 +81,7 @@ async function parseWeb(
     return null;
   }
   const { document } = new JSDOM(await response.text()).window;
-  const name = document.querySelector<HTMLMetaElement>(
-    `meta[property="og:title"]`,
-  );
+  const name = document.querySelector<HTMLDivElement>(`div#appHubAppName`);
   const short_description = document.querySelector<HTMLMetaElement>(
     `meta[name="Description"]`,
   );
@@ -108,7 +106,7 @@ async function parseWeb(
   }
 
   return {
-    name: name.content,
+    name: name.innerText,
     short_description: short_description.content,
     header_image: header_image.content,
   };
