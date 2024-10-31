@@ -4,7 +4,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "bun run --watch src/index.ts",
-    "build": "bun build --minify-whitespace --minify-syntax --compile --target bun --outfile steambus-server ./src/index.ts"
+    "build": "bun build --minify-whitespace --minify-syntax --compile --target=bun-linux-x64 --outfile steambus-server ./src/index.ts"
   },
   "dependencies": {
     "@bogeychan/elysia-logger": "^0.1.4",
