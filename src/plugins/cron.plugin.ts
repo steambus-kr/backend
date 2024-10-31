@@ -393,11 +393,15 @@ async function fetchGameInfoLooper() {
 
   try {
     if (process.env.APP_STATE_ID) {
-      await db.state.update({
+      await db.state.upsert({
         where: {
           id: parseInt(process.env.APP_STATE_ID),
         },
-        data: {
+        create: {
+          id: parseInt(process.env.APP_STATE_ID),
+          last_fetched_info: new Date(),
+        },
+        update: {
           last_fetched_info: new Date(),
         },
       });
