@@ -23,6 +23,7 @@ model Game {
   thumbnail_src   String
   review_positive Int
   review_negative Int
+  review_ratio    Float?
 }
 
 model PlayerCount {
