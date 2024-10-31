@@ -184,7 +184,7 @@ async function saveGameInfo(
       review_negative: SteamSpy_data.negative,
       review_positive: SteamSpy_data.positive,
       owner_count: await parseOwnerCount(SteamSpy_data.owners),
-      genre: appDetails_data.genres
+      genres: appDetails_data.genres
         ? {
             connectOrCreate: appDetails_data.genres.map((genre_name) => ({
               where: { genre_name },
