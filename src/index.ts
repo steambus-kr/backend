@@ -5,7 +5,10 @@ import { config } from "dotenv";
 
 config();
 
-const app = new Elysia().use(swagger).use(cron).listen(3000);
+const app = new Elysia()
+  .use(swagger)
+  .use(cron)
+  .listen(process.env.PORT ?? 3000);
 
 console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
