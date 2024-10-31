@@ -80,7 +80,8 @@ async function parseWeb(
     return null;
   }
   const { document } = new JSDOM(await response.text()).window;
-  const name = document.querySelector<HTMLDivElement>(`div#appHubAppName`);
+  const name =
+    document.querySelector<HTMLDivElement>(`div#appHubAppName`)?.textContent;
   const short_description = document.querySelector<HTMLMetaElement>(
     `meta[name="Description"]`,
   );
@@ -117,10 +118,13 @@ async function parseWeb(
   }
 
   return {
-    name: name.innerText,
+    name,
     short_description: short_description.content,
     header_image: header_image.content,
-    genres: genre_anchors.map((a) => a.innerText),
+    genres: genre_anchors.reduce<string[]>(
+      (p, a) => (a.textContent ? [...p, a.textContent] : p),
+      [],
+    ),
   };
 }
 
