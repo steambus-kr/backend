@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { cron as cronPlugin } from "@elysiajs/cron";
 import { JSDOM } from "jsdom";
 import { db } from "@/db";
-import { logger } from "@/logger";
+import { fgiLogger } from "@/logger";
 
 const APP_CHUNK_SIZE = 1000;
 const APPDETAIL_TMR_DELAY = 180000; // 3min
@@ -50,8 +50,6 @@ interface ISteamSpy {
   negative: number;
   owners: string;
 }
-
-const fgiLogger = logger.child({ fetchGameInfo: true });
 
 const fetchHeader = {
   "Accepted-Language": "ko-KR,en-US;q=0.9,en;q=0.8",
@@ -210,8 +208,7 @@ async function saveGameInfo(
     return { retryable: false, appid };
   }
 
-  fgiLogger.info(`Successfully saved app ${appid}`);
-  fgiLogger.debug(upserted, `Upserted app ${appid}`);
+  fgiLogger.info(upserted, `Successfully saved app ${appid}`);
 
   return { retryable: false, appid };
 }
