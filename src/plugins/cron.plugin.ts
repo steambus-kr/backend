@@ -428,7 +428,6 @@ function formatMs(ms: number): string {
 }
 
 export const cron = new Elysia()
-  .use(logger.into())
   .use(
     cronPlugin({
       name: "fetchGameInfo",
