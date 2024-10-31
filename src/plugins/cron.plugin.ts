@@ -62,7 +62,9 @@ async function parseOwnerCount(owners: string): Promise<number> {
 
 async function parseWeb(
   appid: number,
-): Promise<Omit<IAppDetailsBody[number]["data"], "release_date"> | null> {
+): Promise<
+  Omit<IAppDetailsBody[number]["data"], "release_date"> | { retryable: boolean }
+> {
   const response = await fetch(`https://store.steampowered.com/app/${appid}`, {
     headers: {
       ...fetchHeader,
@@ -77,7 +79,14 @@ async function parseWeb(
     fgiLogger.warn(
       `Steam Store (${appid}) request failed: ${response.status} ${response.statusText}`,
     );
-    return null;
+    if (response.status === 403) {
+      fgiLogger.warn(
+        `Rate Limited Steam Store (${appid}) request, will be tried again later`,
+      );
+      return {
+        retryable: false,
+      };
+    }
   }
   const { document } = new JSDOM(await response.text()).window;
   const name =
@@ -97,19 +106,19 @@ async function parseWeb(
   );
   if (!name) {
     fgiLogger.warn(`Steam Store (${appid}) request failed: name not found`);
-    return null;
+    return { retryable: false };
   }
   if (!short_description) {
     fgiLogger.warn(
       `Steam Store (${appid}) request failed: short_description not found`,
     );
-    return null;
+    return { retryable: false };
   }
   if (!header_image) {
     fgiLogger.warn(
       `Steam Store (${appid}) request failed: header_image not found`,
     );
-    return null;
+    return { retryable: false };
   }
   if (genre_anchors.length === 0) {
     fgiLogger.debug(
@@ -132,8 +141,8 @@ async function saveGameInfo(
   appid: number,
 ): Promise<{ retryable: boolean; appid: number }> {
   const appDetails_data = await parseWeb(appid);
-  if (!appDetails_data) {
-    return { retryable: false, appid };
+  if ("retryable" in appDetails_data) {
+    return { retryable: appDetails_data.retryable, appid };
   }
   const SteamCMD = await fetch(`https://api.steamcmd.net/v1/info/${appid}`);
   if (!SteamCMD.ok) {
