@@ -18,8 +18,8 @@ model Game {
   description     String
   owner_count     Int
   release_date    String
-  genre_ids       Int[]
-  genre           Genre[]       @relation(fields: [genre_ids], references: [genre_id])
+  genre_names     String[]
+  genres          Genre[]       @relation(fields: [genre_names], references: [genre_name])
   player_count    PlayerCount[]
   thumbnail_src   String
   review_positive Int
@@ -38,8 +38,7 @@ model PlayerCount {
 }
 
 model Genre {
-  genre_id   Int    @id @map("_id")
-  genre_name String
+  genre_name String @id @map("_id")
   app_ids    Int[]
   games      Game[] @relation(fields: [app_ids], references: [app_id])
 }
