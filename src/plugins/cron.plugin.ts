@@ -192,11 +192,16 @@ async function saveGameInfo(
       thumbnail_src: appDetails_data.header_image,
       review_negative: SteamSpy_data.negative,
       review_positive: SteamSpy_data.positive,
-      review_ratio: Math.min(
-        1,
-        SteamSpy_data.positive /
-          (SteamSpy_data.positive + SteamSpy_data.negative),
-      ),
+      // review_ratio exception case
+      // 1. 0 / 0 (positive=0, negative=0) should be 0, result to NaN
+      review_ratio:
+        SteamSpy_data.positive === 0
+          ? 0
+          : Math.min(
+              1,
+              SteamSpy_data.positive /
+                (SteamSpy_data.positive + SteamSpy_data.negative),
+            ),
       owner_count: await parseOwnerCount(SteamSpy_data.owners),
       genres: appDetails_data.genres
         ? {
