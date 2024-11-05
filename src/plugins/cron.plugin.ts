@@ -467,8 +467,17 @@ export const cron = new Elysia({ prefix: "/cron" })
       run: fetchGameInfoLooper,
     }),
   )
-  .put("/fetchGameInfo", ({ error }) => {
-    if (process.env.NODE_ENV !== "development") {
+  .guard({
+    headers: t.Object({
+      "X-ADMIN-KEY": t.Optional(t.String()),
+    }),
+  })
+  .put("/fetchGameInfo", ({ error, headers }) => {
+    if (
+      process.env.NODE_ENV !== "development" ||
+      !headers["X-ADMIN-KEY"] ||
+      headers["X-ADMIN-KEY"] !== process.env.ADMIN_KEY
+    ) {
       error(400);
     }
     fetchGameInfoLooper();
@@ -478,9 +487,12 @@ export const cron = new Elysia({ prefix: "/cron" })
       id: t.Number(),
     }),
   })
-  .put("/fetchGameInfo/:id", ({ error, params: { id } }) => {
-    if (process.env.NODE_ENV !== "development") {
-      // TODO: add admin only allow guard
+  .put("/fetchGameInfo/:id", ({ error, params: { id }, headers }) => {
+    if (
+      process.env.NODE_ENV !== "development" ||
+      !headers["X-ADMIN-KEY"] ||
+      headers["X-ADMIN-KEY"] !== process.env.ADMIN_KEY
+    ) {
       error(400);
     }
     saveGameInfo(id);
