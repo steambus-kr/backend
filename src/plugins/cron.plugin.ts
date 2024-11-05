@@ -458,7 +458,7 @@ function formatMs(ms: number): string {
   return str.join(" ");
 }
 
-export const cron = new Elysia()
+export const cron = new Elysia({ prefix: "/cron" })
   .use(
     cronPlugin({
       name: "fetchGameInfo",
@@ -467,7 +467,7 @@ export const cron = new Elysia()
       run: fetchGameInfoLooper,
     }),
   )
-  .put("/cron/fetchGameInfo", ({ error }) => {
+  .put("/fetchGameInfo", ({ error }) => {
     if (process.env.NODE_ENV !== "development") {
       error(400);
     }
@@ -478,7 +478,7 @@ export const cron = new Elysia()
       id: t.Number(),
     }),
   })
-  .put("/cron/fetchGameInfo/:id", ({ error, params: { id } }) => {
+  .put("/fetchGameInfo/:id", ({ error, params: { id } }) => {
     if (process.env.NODE_ENV !== "development") {
       // TODO: add admin only allow guard
       error(400);
