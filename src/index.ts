@@ -5,7 +5,7 @@ import { config } from "dotenv";
 
 config();
 
-const app = new Elysia()
+const app = new Elysia({ prefix: "/api" })
   .use(swagger)
   .use(cron)
   .listen(process.env.PORT ?? 3000);
