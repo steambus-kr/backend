@@ -467,6 +467,32 @@ export const cron = new Elysia({ prefix: "/cron" })
       run: fetchGameInfoLooper,
     }),
   )
+  .get("/health", async ({ error }) => {
+    if (!process.env.APP_STATE_ID) {
+      error(500);
+      return;
+    }
+    const state = await db.state.findUnique({
+      where: {
+        id: parseInt(process.env.APP_STATE_ID),
+      },
+    });
+    if (!state) {
+      error(500);
+      return;
+    }
+
+    if (
+      !state.last_fetched_info ||
+      state.last_fetched_info.getTime() <
+        new Date().getTime() - 1000 * 60 * 60 * 24
+    ) {
+      error(512);
+      return;
+    }
+
+    return { ok: true };
+  })
   .guard({
     headers: t.Object({
       "X-ADMIN-KEY": t.Optional(t.String()),
