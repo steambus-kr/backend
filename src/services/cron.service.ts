@@ -7,6 +7,7 @@ import {
   ISteamCMDBody,
   ISteamSpy,
 } from "@/types";
+import { formatMs } from "@/utils";
 
 const APP_CHUNK_SIZE = 100;
 const APPDETAIL_TMR_DELAY = 180000; // 3min
@@ -391,30 +392,7 @@ export async function fetchGameInfoLooper() {
     );
   } else {
     fgiLogger.info(
-      `fetchGameInfo completed, all games are successfully saved.`,
+      `fetchGameInfo completed (took ${formatMs(elapsedTime)}), all games are successfully saved.`,
     );
   }
-}
-
-function formatMs(ms: number): string {
-  const str = [];
-  const second = 1000;
-  const minute = second * 60;
-  const hour = minute * 60;
-  const day = hour * 24;
-  const asDay = ms / day;
-  const asHour = (ms % day) / hour;
-  const asMinute = (ms % hour) / minute;
-  const asSecond = (ms % minute) / second;
-  if (asDay >= 1) {
-    str.push(`${Math.floor(asDay)}d`);
-  }
-  if (asHour >= 1) {
-    str.push(`${Math.floor(asHour)}h`);
-  }
-  if (asMinute >= 1) {
-    str.push(`${Math.floor(asMinute)}m`);
-  }
-  str.push(`${asSecond}s`);
-  return str.join(" ");
 }
