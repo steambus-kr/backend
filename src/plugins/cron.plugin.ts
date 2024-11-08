@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { cron as cronPlugin } from "@elysiajs/cron";
 import { db } from "@/db";
-import { fetchGameInfoLooper, saveGameInfo } from "@/services/cron.service";
+import { FetchGameInfoService } from "@/services/cron.service";
 
 export const cron = new Elysia({ prefix: "/cron" })
   .use(
@@ -9,7 +9,11 @@ export const cron = new Elysia({ prefix: "/cron" })
       name: "fetchGameInfo",
       pattern: "0 0 * * * *",
       timezone: "Asia/Seoul",
-      run: fetchGameInfoLooper,
+      run: async () => {
+        const service = new FetchGameInfoService();
+        await service.init();
+        await service.start();
+      },
     }),
   )
   .get("/health", async ({ error }) => {
@@ -43,7 +47,7 @@ export const cron = new Elysia({ prefix: "/cron" })
       "X-ADMIN-KEY": t.Optional(t.String()),
     }),
   })
-  .put("/fetchGameInfo", ({ error, headers }) => {
+  .put("/fetchGameInfo", async ({ error, headers }) => {
     if (
       process.env.NODE_ENV !== "development" ||
       !headers["X-ADMIN-KEY"] ||
@@ -51,14 +55,16 @@ export const cron = new Elysia({ prefix: "/cron" })
     ) {
       error(400);
     }
-    fetchGameInfoLooper();
+    const service = new FetchGameInfoService();
+    await service.init();
+    await service.start();
   })
   .guard({
     params: t.Object({
       id: t.Number(),
     }),
   })
-  .put("/fetchGameInfo/:id", ({ error, params: { id }, headers }) => {
+  .put("/fetchGameInfo/:id", async ({ error, params: { id }, headers }) => {
     if (
       process.env.NODE_ENV !== "development" ||
       !headers["X-ADMIN-KEY"] ||
@@ -66,5 +72,7 @@ export const cron = new Elysia({ prefix: "/cron" })
     ) {
       error(400);
     }
-    saveGameInfo(id);
+    const service = new FetchGameInfoService();
+    await service.init();
+    return await service.saveGameInfo(id);
   });

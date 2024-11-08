@@ -20,3 +20,9 @@ export function formatMs(ms: number): string {
   str.push(`${asSecond}s`);
   return str.join(" ");
 }
+
+export function timeout(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
