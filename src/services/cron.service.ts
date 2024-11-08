@@ -310,6 +310,7 @@ export class FetchGameInfoService {
     }
 
     this.logger.info(upserted, `Successfully saved app ${appid}`);
+    this.successApp++;
     return { ok: true, willBeRetried: false };
   }
 
