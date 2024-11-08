@@ -1,53 +1,16 @@
 import { fgiLogger } from "@/logger";
 import { db } from "@/db";
 import { JSDOM } from "jsdom";
+import {
+  IAppDetailsBody,
+  IGetAppListBody,
+  ISteamCMDBody,
+  ISteamSpy,
+} from "@/types";
 
 const APP_CHUNK_SIZE = 100;
 const APPDETAIL_TMR_DELAY = 180000; // 3min
 const CHUNK_DELAY = 5000;
-
-interface IGetAppListBody {
-  response: {
-    apps: Array<{
-      appid: number;
-      name: string;
-      last_modified: number;
-      price_change_number: number;
-    }>;
-    have_more_results: boolean;
-    last_appid: number;
-  };
-}
-
-type IAppDetailsBody = Record<
-  number,
-  {
-    success: boolean;
-    data: {
-      name: string;
-      short_description: string;
-      genres?: string[];
-      header_image: string;
-      release_date: {
-        coming_soom: boolean;
-        date: string;
-      };
-    };
-  }
->;
-
-type ISteamCMDBody = {
-  success: boolean;
-  data: Record<number, { common: { steam_release_date?: `${number}` } }>;
-};
-
-interface ISteamSpy {
-  appid: number;
-  name: string;
-  positive: number;
-  negative: number;
-  owners: string;
-}
 
 const fetchHeader = {
   "Accepted-Language": "ko-KR,en-US;q=0.9,en;q=0.8",
