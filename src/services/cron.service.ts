@@ -61,6 +61,27 @@ export class FetchGameInfoService {
     this.iteration = 0;
   }
 
+  static async healthCheck() {
+    const state = await db.state.findUnique({
+      where: {
+        id: parseInt(process.env.APP_STATE_ID!),
+      },
+    });
+    if (!state) {
+      return { ok: false };
+    }
+
+    if (
+      !state.last_fetched_info ||
+      state.last_fetched_info.getTime() <
+        new Date().getTime() - 1000 * 60 * 60 * 24
+    ) {
+      return { ok: false };
+    }
+
+    return { ok: true };
+  }
+
   async init() {
     if (!process.env.APP_STATE_ID) {
       this.logger.error("APP_STATE_ID not set");
