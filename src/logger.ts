@@ -42,6 +42,12 @@ export function fgiLoggerBuilder() {
   const logPath = join(logRoot, "fgi.out.d");
   const errorLogPath = join(logRoot, "fgi.error.d");
   // yy. mm. dd -> yy-mm-dd
+  if (!existsSync(logPath)) {
+    mkdirSync(logPath, { recursive: true });
+  }
+  if (!existsSync(errorLogPath)) {
+    mkdirSync(errorLogPath, { recursive: true });
+  }
   return createPinoLogger({
     level: "debug",
     stream: pino.multistream([
@@ -81,6 +87,12 @@ export function pcLoggerBuilder() {
   const logPath = join(logRoot, "pc", `${nowDate}.out.d`);
   const errorLogPath = join(logRoot, "pc", `${nowDate}.error.d`);
   // yy. mm. dd -> yy-mm-dd
+  if (!existsSync(logPath)) {
+    mkdirSync(logPath, { recursive: true });
+  }
+  if (!existsSync(errorLogPath)) {
+    mkdirSync(errorLogPath, { recursive: true });
+  }
   return createPinoLogger({
     level: "debug",
     stream: pino.multistream([
