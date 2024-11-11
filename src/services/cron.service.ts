@@ -753,7 +753,28 @@ export class PlayerCountService {
       },
       `All playercount fetched on ${new Date().toLocaleTimeString()} (took ${formatMs(elapsedTime)})`,
     );
+    await this.removeOutdated();
     orphanLogFiles.push(...this.loggerPaths);
+  }
+
+  async removeOutdated() {
+    try {
+      const deleteBefore24Query = {
+        where: {
+          date: {
+            lt: new Date(new Date().getTime() - 1000 * 60 * 60 * 24),
+          },
+        },
+      };
+
+      const deleteCount = await db.playerCount.count(deleteBefore24Query);
+      await db.playerCount.deleteMany(deleteBefore24Query);
+      this.logger.info(`Deleted ${deleteCount} old records`);
+    } catch (e) {
+      this.logger.error(
+        `Error occurred while deleting old playercount records: ${e}`,
+      );
+    }
   }
 }
 
