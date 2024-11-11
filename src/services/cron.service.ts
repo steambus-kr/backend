@@ -11,7 +11,9 @@ import {
 import { formatMs, timeout } from "@/utils";
 
 const APP_CHUNK_SIZE = 100;
+const PC_CHUNK_SIZE = 300;
 const APPDETAIL_TMR_DELAY = 180000; // 3min
+const PC_TMR_DELAY = 30000; // 30s
 const CHUNK_DELAY = 5000;
 
 const fetchHeader = {
@@ -497,6 +499,9 @@ export class PlayerCountService {
   failureApps: Record<number, number>;
   logger: ReturnType<typeof pcLoggerBuilder>;
 
+  chunkStat: Record<number, "waiting" | "pending" | "done">;
+  waitSignal: Promise<void> | null;
+
   constructor() {
     this.retryApps = [];
     this.totalApps = 0;
@@ -504,6 +509,7 @@ export class PlayerCountService {
     this.failureApps = {};
 
     this.logger = pcLoggerBuilder();
+    this.waitSignal = null;
 
     if (!process.env.APP_STATE_ID) {
       this.logger.error("APP_STATE_ID not set");
@@ -512,6 +518,29 @@ export class PlayerCountService {
     if (!process.env.STEAM_KEY) {
       this.logger.error("STEAM_KEY not set");
     }
+
+    this.chunkStat = {};
+  }
+
+  async reportChunk() {
+    const chunkInfoSummary = Object.entries(this.chunkStat).reduce<{
+      finishedChunks: number;
+      currentChunk: string | number | null;
+      waitingChunks: number;
+    }>(
+      (p, [chunkId, status]) => {
+        switch (status) {
+          case "waiting":
+            return { ...p, waitingChunks: p.waitingChunks + 1 };
+          case "pending":
+            return { ...p, currentChunk: chunkId };
+          case "done":
+            return { ...p, finishedChunks: p.finishedChunks + 1 };
+        }
+      },
+      { finishedChunks: 0, currentChunk: null, waitingChunks: 0 },
+    );
+    this.logger.info(chunkInfoSummary, `Chunk status report`);
   }
 
   static async healthCheck() {
@@ -532,6 +561,20 @@ export class PlayerCountService {
     return { ok: true };
   }
 
+  async waitForRateLimit() {
+    this.waitSignal = new Promise((r) => setTimeout(r, PC_TMR_DELAY)).then(
+      () => {
+        this.waitSignal = null;
+      },
+    );
+  }
+
+  async markAsRetry(appid: number) {
+    if (!this.retryApps.includes(appid)) {
+      this.retryApps.push(appid);
+    }
+  }
+
   async addFailure(status: number) {
     if (!(status in this.failureApps)) {
       this.failureApps[status] = 0;
@@ -540,16 +583,29 @@ export class PlayerCountService {
   }
 
   async getPlayerCount(appid: number): Promise<IPlayerCountResponse> {
+    while (this.waitSignal !== null) {
+      await this.waitSignal;
+    }
     const response = await fetch(
       `https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=${appid}`,
     );
     if (!response.ok) {
-      await this.addFailure(response.status);
-      this.logger.error(
-        { appid, status: response.status },
-        `${response.status} failure while getting response of app ${appid}`,
-      );
-      return { ok: false };
+      switch (response.status) {
+        case 403:
+          this.logger.error(
+            { appid, status: response.status },
+            `rate limited while getting response of app ${appid}, will be retried`,
+          );
+          await this.waitForRateLimit();
+          return this.getPlayerCount(appid);
+        default:
+          await this.addFailure(response.status);
+          this.logger.error(
+            { appid, status: response.status },
+            `${response.status} failure while getting response of app ${appid}`,
+          );
+          return { ok: false };
+      }
     }
 
     let responseJson;
@@ -592,7 +648,7 @@ export class PlayerCountService {
 
   async getMaxChunkIdx(): Promise<number> {
     const r = await db.game.count();
-    return Math.floor(r / APP_CHUNK_SIZE);
+    return Math.floor(r / PC_CHUNK_SIZE);
   }
 
   async getChunk(idx: number): Promise<number[]> {
@@ -601,8 +657,8 @@ export class PlayerCountService {
         orderBy: {
           app_id: "asc",
         },
-        skip: idx * APP_CHUNK_SIZE,
-        take: APP_CHUNK_SIZE,
+        skip: idx * PC_CHUNK_SIZE,
+        take: PC_CHUNK_SIZE,
         select: {
           app_id: true,
         },
@@ -613,16 +669,27 @@ export class PlayerCountService {
   async start() {
     const startDate = new Date();
     const startPerformance = performance.now();
-    this.logger.info(
-      `Starting PlayerCount fetch on ${startDate.toLocaleTimeString()}`,
-    );
     const maxIdx = await this.getMaxChunkIdx();
+    this.logger.info(
+      `Starting PlayerCount fetch on ${startDate.toLocaleTimeString()}, total ${maxIdx + 1} chunks`,
+    );
+    Array.from(new Array(maxIdx + 10)).forEach((_, i) => {
+      this.chunkStat[i] = "waiting";
+    });
+    const chunkReporter = setInterval(() => {
+      this.reportChunk();
+    }, 10000);
     for (let i = 0; i <= maxIdx; i++) {
+      this.chunkStat[i] = "pending";
       const chunkAppIds = await this.getChunk(i);
+      this.totalApps += chunkAppIds.length;
       const result = (
         await Promise.all(
           chunkAppIds.map((appId) => this.getPlayerCount(appId)),
-        )
+        ).then((r) => {
+          this.chunkStat[i] = "done";
+          return r;
+        })
       ).filter<IPlayerCountSuccess>((r): r is IPlayerCountSuccess => !!r.ok);
       this.logger.info(`Saving chunk ${i} (${result.length} successful apps)`);
       try {
@@ -635,11 +702,13 @@ export class PlayerCountService {
             };
           }),
         });
-        this.logger.info(`Successfully saved ${result.length} apps`);
+        this.logger.info(`Successfully saved chunk ${i}`);
+        this.successApps += result.length;
       } catch (e) {
         this.logger.info(`Error while saving chunk ${i}: ${e}`);
       }
     }
+    clearInterval(chunkReporter);
 
     try {
       await db.state.upsert({
@@ -655,7 +724,7 @@ export class PlayerCountService {
         },
       });
     } catch (e) {
-      this.logger.info(`Error while saving state`);
+      this.logger.info(`Error while saving state: ${e}`);
     }
 
     const elapsedTime = performance.now() - startPerformance;
