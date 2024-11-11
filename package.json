@@ -17,6 +17,7 @@
     "pino-pretty": "^11.3.0"
   },
   "devDependencies": {
+    "@types/bun": "^1.1.13",
     "@types/jsdom": "^21.1.7",
     "bun-types": "latest",
     "prisma": "5.21.1"
