@@ -504,6 +504,14 @@ export class PlayerCountService {
     this.failureApps = {};
 
     this.logger = pcLoggerBuilder();
+
+    if (!process.env.APP_STATE_ID) {
+      this.logger.error("APP_STATE_ID not set");
+      throw new Error();
+    }
+    if (!process.env.STEAM_KEY) {
+      this.logger.error("STEAM_KEY not set");
+    }
   }
 
   async addFailure(status: number) {
@@ -601,6 +609,23 @@ export class PlayerCountService {
       } catch (e) {
         this.logger.info(`Error while saving chunk ${i}: ${e}`);
       }
+    }
+
+    try {
+      await db.state.upsert({
+        where: {
+          id: parseInt(process.env.APP_STATE_ID!),
+        },
+        create: {
+          id: parseInt(process.env.APP_STATE_ID!),
+          last_fetched_pc: new Date(),
+        },
+        update: {
+          last_fetched_pc: new Date(),
+        },
+      });
+    } catch (e) {
+      this.logger.info(`Error while saving state`);
     }
 
     const elapsedTime = performance.now() - startPerformance;
