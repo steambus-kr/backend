@@ -11,7 +11,7 @@ const app = new Elysia({ prefix: "/api" })
   .use(cron)
   .use(logger.into())
   .get("/health", async () => {
-    return { ok: true };
+    return { healthof: "/api/health", ok: true };
   })
   .listen(process.env.PORT ?? 3000);
 

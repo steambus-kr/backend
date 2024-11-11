@@ -44,12 +44,12 @@ export const cron = new Elysia({ prefix: "/cron" })
   .get("/health/fgi", async ({ error }) => {
     const { ok } = await FetchGameInfoService.healthCheck();
     if (!ok) error(512);
-    return { ok: true };
+    return { healthof: "/api/cron/health/fgi", ok: true };
   })
   .get("/health/pc", async ({ error }) => {
     const { ok } = await PlayerCountService.healthCheck();
     if (!ok) error(512);
-    return { ok: true };
+    return { healthof: "/api/cron/health/pc", ok: true };
   })
   .guard({
     headers: t.Object({
