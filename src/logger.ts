@@ -72,7 +72,7 @@ export function pcLoggerBuilder() {
     .replaceAll(/\.\s?/g, "-")
     .slice(0, -1);
   const nowTime = new Intl.DateTimeFormat("ko", {
-    dateStyle: "medium",
+    timeStyle: "medium",
     timeZone: "Asia/Seoul",
   })
     .format(now)
