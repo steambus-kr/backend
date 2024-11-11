@@ -32,26 +32,26 @@ export const logger = createPinoLogger({
 });
 
 export function fgiLoggerBuilder() {
-  const nowTime = new Intl.DateTimeFormat("ko", {
+  const nowDate = new Intl.DateTimeFormat("ko", {
     dateStyle: "short",
     timeZone: "Asia/Seoul",
   })
     .format(new Date())
     .replaceAll(/\.\s?/g, "-")
     .slice(0, -1);
+  const logPath = join(logRoot, "fgi.out.d");
+  const errorLogPath = join(logRoot, "fgi.error.d");
   // yy. mm. dd -> yy-mm-dd
   return createPinoLogger({
     level: "debug",
     stream: pino.multistream([
       {
         level: "debug",
-        stream: createWriteStream(join(logRoot, `fgi-${nowTime}.stream.out`)),
+        stream: createWriteStream(join(logPath, nowDate)),
       },
       {
         level: "warn",
-        stream: createWriteStream(
-          join(logRoot, `fgi-${nowTime}.error.stream.out`),
-        ),
+        stream: createWriteStream(join(errorLogPath, nowDate)),
       },
       {
         level: "info",
@@ -63,26 +63,34 @@ export function fgiLoggerBuilder() {
 }
 
 export function pcLoggerBuilder() {
-  const nowTime = new Intl.DateTimeFormat("ko", {
+  const now = new Date();
+  const nowDate = new Intl.DateTimeFormat("ko", {
     dateStyle: "short",
     timeZone: "Asia/Seoul",
   })
-    .format(new Date())
+    .format(now)
     .replaceAll(/\.\s?/g, "-")
     .slice(0, -1);
+  const nowTime = new Intl.DateTimeFormat("ko", {
+    dateStyle: "medium",
+    timeZone: "Asia/Seoul",
+  })
+    .format(now)
+    .split(" ")[1]
+    .replaceAll(":", "-");
+  const logPath = join(logRoot, "pc", `${nowDate}.out.d`);
+  const errorLogPath = join(logRoot, "pc", `${nowDate}.error.d`);
   // yy. mm. dd -> yy-mm-dd
   return createPinoLogger({
     level: "debug",
     stream: pino.multistream([
       {
         level: "debug",
-        stream: createWriteStream(join(logRoot, `pc-${nowTime}.stream.out`)),
+        stream: createWriteStream(join(logPath, nowTime)),
       },
       {
         level: "warn",
-        stream: createWriteStream(
-          join(logRoot, `pc-${nowTime}.error.stream.out`),
-        ),
+        stream: createWriteStream(join(errorLogPath, nowTime)),
       },
       {
         level: "info",
