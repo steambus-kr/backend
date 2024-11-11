@@ -79,7 +79,12 @@ export const cron = new Elysia({ prefix: "/cron" })
 
     const service = new PlayerCountService();
     await service.start();
-  })
+  });
+/*
+  disabling it since this endpoint features can interrupt log file compression
+  should manually insert data into database
+*/
+/*
   .guard({
     params: t.Object({
       id: t.Number(),
@@ -113,3 +118,4 @@ export const cron = new Elysia({ prefix: "/cron" })
     }
     await service.saveSingleCount(data);
   });
+*/
