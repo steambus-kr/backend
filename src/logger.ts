@@ -10,8 +10,6 @@ if (!existsSync(logRoot)) {
 
 const logStream = createWriteStream(join(logRoot, "log.stream.out"));
 const errorStream = createWriteStream(join(logRoot, "error.stream.out"));
-const pcStream = createWriteStream(join(logRoot, "pc.stream.out"));
-const pcErrorStream = createWriteStream(join(logRoot, "pc.error.stream.out"));
 
 const stream = pino.multistream([
   {
@@ -64,21 +62,33 @@ export function fgiLoggerBuilder() {
   });
 }
 
-export const pcLogger = createPinoLogger({
-  level: "debug",
-  stream: pino.multistream([
-    {
-      level: "debug",
-      stream: pcStream,
-    },
-    {
-      level: "warn",
-      stream: pcErrorStream,
-    },
-    {
-      level: "info",
-      stream: pretty({ colorize: true }),
-    },
-  ]),
-  name: "PlayerCountService",
-});
+export function pcLoggerBuilder() {
+  const nowTime = new Intl.DateTimeFormat("ko", {
+    dateStyle: "short",
+    timeZone: "Asia/Seoul",
+  })
+    .format(new Date())
+    .replaceAll(/\.\s?/g, "-")
+    .slice(0, -1);
+  // yy. mm. dd -> yy-mm-dd
+  return createPinoLogger({
+    level: "debug",
+    stream: pino.multistream([
+      {
+        level: "debug",
+        stream: createWriteStream(join(logRoot, `pc-${nowTime}.stream.out`)),
+      },
+      {
+        level: "warn",
+        stream: createWriteStream(
+          join(logRoot, `pc-${nowTime}.error.stream.out`),
+        ),
+      },
+      {
+        level: "info",
+        stream: pretty({ colorize: true }),
+      },
+    ]),
+    name: "PlayerCountService",
+  });
+}

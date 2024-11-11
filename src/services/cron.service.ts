@@ -1,4 +1,4 @@
-import { fgiLoggerBuilder } from "@/logger";
+import { fgiLoggerBuilder, pcLoggerBuilder } from "@/logger";
 import { db } from "@/db";
 import { JSDOM } from "jsdom";
 import {
@@ -6,6 +6,7 @@ import {
   IGetAppListBody,
   ISteamCMDBody,
   ISteamSpy,
+  ISteamUserStats,
 } from "@/types";
 import { formatMs, timeout } from "@/utils";
 
@@ -473,6 +474,143 @@ export class FetchGameInfoService {
         failure: this.failureApp,
       },
       `fetchGameInfo completed on ${new Date().toLocaleTimeString()} (took ${formatMs(elapsedTime)})`,
+    );
+  }
+}
+
+interface IPlayerCountFailure {
+  ok: false;
+}
+
+interface IPlayerCountSuccess {
+  ok: true;
+  appId: number;
+  count: number;
+}
+
+type IPlayerCountResponse = IPlayerCountSuccess | IPlayerCountFailure;
+
+export class PlayerCountService {
+  retryApps: number[];
+  totalApps: number;
+  successApps: number;
+  failureApps: Record<number, number>;
+  logger: ReturnType<typeof pcLoggerBuilder>;
+
+  constructor() {
+    this.retryApps = [];
+    this.totalApps = 0;
+    this.successApps = 0;
+    this.failureApps = {};
+
+    this.logger = pcLoggerBuilder();
+  }
+
+  async addFailure(status: number) {
+    if (!(status in this.failureApps)) {
+      this.failureApps[status] = 0;
+    }
+    this.failureApps[status]++;
+  }
+
+  async getPlayerCount(appid: number): Promise<IPlayerCountResponse> {
+    const response = await fetch(
+      `https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=${appid}`,
+    );
+    if (!response.ok) {
+      await this.addFailure(response.status);
+      this.logger.error(
+        { appid, status: response.status },
+        `${response.status} failure while getting response of app ${appid}`,
+      );
+      return { ok: false };
+    }
+
+    let responseJson;
+    try {
+      responseJson = (await response.json()) as ISteamUserStats;
+    } catch (e) {
+      this.logger.error(`Error while parsing json from app ${appid}`);
+      await this.addFailure(1);
+      return {
+        ok: false,
+      };
+    }
+
+    if (responseJson.response.result !== 1) {
+      this.logger.error(`app ${appid} response's body marked as fail`);
+      await this.addFailure(0);
+      return {
+        ok: false,
+      };
+    }
+
+    return {
+      ok: true,
+      appId: appid,
+      count: responseJson.response.player_count,
+    };
+  }
+
+  async getMaxChunkIdx(): Promise<number> {
+    const r = await db.game.count();
+    return Math.floor(r / APP_CHUNK_SIZE);
+  }
+
+  async getChunk(idx: number): Promise<number[]> {
+    return (
+      await db.game.findMany({
+        orderBy: {
+          app_id: "asc",
+        },
+        skip: idx * APP_CHUNK_SIZE,
+        take: APP_CHUNK_SIZE,
+        select: {
+          app_id: true,
+        },
+      })
+    ).map(({ app_id }) => app_id);
+  }
+
+  async start() {
+    const startDate = new Date();
+    const startPerformance = performance.now();
+    this.logger.info(
+      `Starting PlayerCount fetch on ${startDate.toLocaleTimeString()}`,
+    );
+    const maxIdx = await this.getMaxChunkIdx();
+    for (let i = 0; i <= maxIdx; i++) {
+      const chunkAppIds = await this.getChunk(i);
+      const result = (
+        await Promise.all(
+          chunkAppIds.map((appId) => this.getPlayerCount(appId)),
+        )
+      ).filter<IPlayerCountSuccess>((r): r is IPlayerCountSuccess => !!r.ok);
+      this.logger.info(`Saving chunk ${i} (${result.length} successful apps)`);
+      try {
+        await db.playerCount.createMany({
+          data: result.map(({ appId, count }) => {
+            return {
+              app_id: appId,
+              count,
+              date: startDate,
+            };
+          }),
+        });
+        this.logger.info(`Successfully saved ${result.length} apps`);
+      } catch (e) {
+        this.logger.info(`Error while saving chunk ${i}: ${e}`);
+      }
+    }
+
+    const elapsedTime = performance.now() - startPerformance;
+    this.logger.info(
+      {
+        total: this.totalApps,
+        success: this.successApps,
+        failure: this.failureApps,
+      },
+      `All playercount fetched on ${new Date().toLocaleTimeString()} (took ${formatMs(elapsedTime)})`,
     );
   }
 }
