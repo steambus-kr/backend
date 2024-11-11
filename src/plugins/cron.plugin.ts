@@ -21,7 +21,7 @@ export const cron = new Elysia({ prefix: "/cron" })
   .use(
     cronPlugin({
       name: "fetchPlayerCount",
-      pattern: "*/10 * * * * *",
+      pattern: "* */10 * * * *",
       timezone: "Asia/Seoul",
       run: async () => {
         const service = new PlayerCountService();
