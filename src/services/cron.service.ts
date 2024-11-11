@@ -13,7 +13,7 @@ import { gzip } from "node-gzip";
 import { unlink } from "node:fs/promises";
 
 const APP_CHUNK_SIZE = 100;
-const PC_CHUNK_SIZE = 300;
+const PC_CHUNK_SIZE = 200;
 const APPDETAIL_TMR_DELAY = 180000; // 3min
 const PC_TMR_DELAY = 30000; // 30s
 const CHUNK_DELAY = 5000;
