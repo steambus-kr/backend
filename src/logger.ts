@@ -41,14 +41,16 @@ export function fgiLoggerBuilder() {
     .format(new Date())
     .replaceAll(/\.\s?/g, "-")
     .slice(0, -1);
-  const logPath = join(logRoot, "fgi.out.d", nowDate);
-  const errorLogPath = join(logRoot, "fgi.error.d", nowDate);
+  const logDir = join(logRoot, "fgi.out.d");
+  const errorLogDir = join(logRoot, "fgi.error.d");
+  const logPath = join(logDir, nowDate);
+  const errorLogPath = join(errorLogDir, nowDate);
   // yy. mm. dd -> yy-mm-dd
-  if (!existsSync(logPath)) {
-    mkdirSync(logPath, { recursive: true });
+  if (!existsSync(logDir)) {
+    mkdirSync(logDir, { recursive: true });
   }
-  if (!existsSync(errorLogPath)) {
-    mkdirSync(errorLogPath, { recursive: true });
+  if (!existsSync(errorLogDir)) {
+    mkdirSync(errorLogDir, { recursive: true });
   }
   return [
     createPinoLogger({
@@ -90,14 +92,16 @@ export function pcLoggerBuilder() {
     .format(now)
     .split(" ")[1]
     .replaceAll(":", "-");
-  const logPath = join(logRoot, "pc", `${nowDate}.out.d`, nowTime);
-  const errorLogPath = join(logRoot, "pc", `${nowDate}.error.d`, nowTime);
+  const logDir = join(logRoot, "pc", `${nowDate}.out.d`);
+  const errorLogDir = join(logRoot, "pc", `${nowDate}.error.d`);
+  const logPath = join(logDir, nowTime);
+  const errorLogPath = join(errorLogDir, nowTime);
   // yy. mm. dd -> yy-mm-dd
-  if (!existsSync(logPath)) {
-    mkdirSync(logPath, { recursive: true });
+  if (!existsSync(logDir)) {
+    mkdirSync(logDir, { recursive: true });
   }
-  if (!existsSync(errorLogPath)) {
-    mkdirSync(errorLogPath, { recursive: true });
+  if (!existsSync(errorLogDir)) {
+    mkdirSync(errorLogDir, { recursive: true });
   }
   return [
     createPinoLogger({
