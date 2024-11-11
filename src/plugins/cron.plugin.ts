@@ -1,6 +1,9 @@
 import { Elysia, t } from "elysia";
 import { cron as cronPlugin } from "@elysiajs/cron";
-import { FetchGameInfoService } from "@/services/cron.service";
+import {
+  FetchGameInfoService,
+  PlayerCountService,
+} from "@/services/cron.service";
 
 export const cron = new Elysia({ prefix: "/cron" })
   .use(
@@ -15,8 +18,13 @@ export const cron = new Elysia({ prefix: "/cron" })
       },
     }),
   )
-  .get("/health", async ({ error }) => {
+  .get("/health/fgi", async ({ error }) => {
     const { ok } = await FetchGameInfoService.healthCheck();
+    if (!ok) error(512);
+    return { ok: true };
+  })
+  .get("/health/pc", async ({ error }) => {
+    const { ok } = await PlayerCountService.healthCheck();
     if (!ok) error(512);
     return { ok: true };
   })

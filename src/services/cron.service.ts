@@ -514,6 +514,24 @@ export class PlayerCountService {
     }
   }
 
+  static async healthCheck() {
+    const state = await db.state.findUnique({
+      where: {
+        id: parseInt(process.env.APP_STATE_ID!),
+      },
+    });
+    if (!state) return { ok: false };
+
+    if (
+      !state.last_fetched_pc ||
+      state.last_fetched_pc.getTime() < new Date().getTime() - 1000 * 60 * 10
+    ) {
+      return { ok: false };
+    }
+
+    return { ok: true };
+  }
+
   async addFailure(status: number) {
     if (!(status in this.failureApps)) {
       this.failureApps[status] = 0;
