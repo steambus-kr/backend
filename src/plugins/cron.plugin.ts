@@ -5,6 +5,7 @@ import {
   LoggerZipperService,
   PlayerCountService,
 } from "@/services/cron.service";
+import { logger } from "@/logger";
 
 export const cron = new Elysia({ prefix: "/cron" })
   .use(
@@ -43,12 +44,12 @@ export const cron = new Elysia({ prefix: "/cron" })
   )
   .get("/health/fgi", async ({ error }) => {
     const { ok } = await FetchGameInfoService.healthCheck();
-    if (!ok) error(512);
+    if (!ok) return error(512);
     return { healthof: "/api/cron/health/fgi", ok: true };
   })
   .get("/health/pc", async ({ error }) => {
     const { ok } = await PlayerCountService.healthCheck();
-    if (!ok) error(512);
+    if (!ok) return error(512);
     return { healthof: "/api/cron/health/pc", ok: true };
   })
   .guard({
@@ -62,7 +63,7 @@ export const cron = new Elysia({ prefix: "/cron" })
       !headers["X-ADMIN-KEY"] ||
       headers["X-ADMIN-KEY"] !== process.env.ADMIN_KEY
     ) {
-      error(400);
+      return error(400);
     }
     const service = new FetchGameInfoService();
     await service.init();
@@ -74,7 +75,7 @@ export const cron = new Elysia({ prefix: "/cron" })
       !headers["X-ADMIN-KEY"] ||
       headers["X-ADMIN-KEY"] !== process.env.ADMIN_KEY
     ) {
-      error(400);
+      return error(400);
     }
 
     const service = new PlayerCountService();

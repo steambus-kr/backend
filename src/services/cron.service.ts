@@ -1,9 +1,4 @@
-import {
-  errorFilePath,
-  fgiLoggerBuilder,
-  logFilePath,
-  pcLoggerBuilder,
-} from "@/logger";
+import { fgiLoggerBuilder, pcLoggerBuilder, logger } from "@/logger";
 import { db } from "@/db";
 import { JSDOM } from "jsdom";
 import {
@@ -86,6 +81,7 @@ export class FetchGameInfoService {
     if (!state) {
       return { ok: false };
     }
+    logger.info(state);
 
     if (
       !state.last_fetched_info ||
