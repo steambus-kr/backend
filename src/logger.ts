@@ -8,8 +8,10 @@ if (!existsSync(logRoot)) {
   mkdirSync(logRoot);
 }
 
-const logStream = createWriteStream(join(logRoot, "log.stream.out"));
-const errorStream = createWriteStream(join(logRoot, "error.stream.out"));
+export const logFilePath = join(logRoot, "log.stream.out");
+export const errorFilePath = join(logRoot, "error.stream.out");
+const logStream = createWriteStream(logFilePath);
+const errorStream = createWriteStream(errorFilePath);
 
 const stream = pino.multistream([
   {
@@ -39,8 +41,8 @@ export function fgiLoggerBuilder() {
     .format(new Date())
     .replaceAll(/\.\s?/g, "-")
     .slice(0, -1);
-  const logPath = join(logRoot, "fgi.out.d");
-  const errorLogPath = join(logRoot, "fgi.error.d");
+  const logPath = join(logRoot, "fgi.out.d", nowDate);
+  const errorLogPath = join(logRoot, "fgi.error.d", nowDate);
   // yy. mm. dd -> yy-mm-dd
   if (!existsSync(logPath)) {
     mkdirSync(logPath, { recursive: true });
@@ -48,24 +50,28 @@ export function fgiLoggerBuilder() {
   if (!existsSync(errorLogPath)) {
     mkdirSync(errorLogPath, { recursive: true });
   }
-  return createPinoLogger({
-    level: "debug",
-    stream: pino.multistream([
-      {
-        level: "debug",
-        stream: createWriteStream(join(logPath, nowDate)),
-      },
-      {
-        level: "warn",
-        stream: createWriteStream(join(errorLogPath, nowDate)),
-      },
-      {
-        level: "info",
-        stream: pretty({ colorize: true }),
-      },
-    ]),
-    name: "FetchGameInfoService",
-  });
+  return [
+    createPinoLogger({
+      level: "debug",
+      stream: pino.multistream([
+        {
+          level: "debug",
+          stream: createWriteStream(logPath),
+        },
+        {
+          level: "warn",
+          stream: createWriteStream(errorLogPath),
+        },
+        {
+          level: "info",
+          stream: pretty({ colorize: true }),
+        },
+      ]),
+      name: "FetchGameInfoService",
+    }),
+    logPath,
+    errorLogPath,
+  ] as const;
 }
 
 export function pcLoggerBuilder() {
@@ -84,8 +90,8 @@ export function pcLoggerBuilder() {
     .format(now)
     .split(" ")[1]
     .replaceAll(":", "-");
-  const logPath = join(logRoot, "pc", `${nowDate}.out.d`);
-  const errorLogPath = join(logRoot, "pc", `${nowDate}.error.d`);
+  const logPath = join(logRoot, "pc", `${nowDate}.out.d`, nowTime);
+  const errorLogPath = join(logRoot, "pc", `${nowDate}.error.d`, nowTime);
   // yy. mm. dd -> yy-mm-dd
   if (!existsSync(logPath)) {
     mkdirSync(logPath, { recursive: true });
@@ -93,22 +99,26 @@ export function pcLoggerBuilder() {
   if (!existsSync(errorLogPath)) {
     mkdirSync(errorLogPath, { recursive: true });
   }
-  return createPinoLogger({
-    level: "debug",
-    stream: pino.multistream([
-      {
-        level: "debug",
-        stream: createWriteStream(join(logPath, nowTime)),
-      },
-      {
-        level: "warn",
-        stream: createWriteStream(join(errorLogPath, nowTime)),
-      },
-      {
-        level: "info",
-        stream: pretty({ colorize: true }),
-      },
-    ]),
-    name: "PlayerCountService",
-  });
+  return [
+    createPinoLogger({
+      level: "debug",
+      stream: pino.multistream([
+        {
+          level: "debug",
+          stream: createWriteStream(logPath),
+        },
+        {
+          level: "warn",
+          stream: createWriteStream(errorLogPath),
+        },
+        {
+          level: "info",
+          stream: pretty({ colorize: true }),
+        },
+      ]),
+      name: "PlayerCountService",
+    }),
+    logPath,
+    errorLogPath,
+  ] as const;
 }

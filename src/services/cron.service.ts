@@ -1,4 +1,9 @@
-import { fgiLoggerBuilder, pcLoggerBuilder } from "@/logger";
+import {
+  errorFilePath,
+  fgiLoggerBuilder,
+  logFilePath,
+  pcLoggerBuilder,
+} from "@/logger";
 import { db } from "@/db";
 import { JSDOM } from "jsdom";
 import {
@@ -9,6 +14,8 @@ import {
   ISteamUserStats,
 } from "@/types";
 import { formatMs, timeout } from "@/utils";
+import { gzip } from "node-gzip";
+import { unlink, exists } from "node:fs/promises";
 
 const APP_CHUNK_SIZE = 100;
 const PC_CHUNK_SIZE = 300;
@@ -19,6 +26,8 @@ const CHUNK_DELAY = 5000;
 const fetchHeader = {
   "Accepted-Language": "ko-KR,en-US;q=0.9,en;q=0.8",
 };
+
+const orphanLogFiles: string[] = [];
 
 type FailureReason =
   | "region_lock"
@@ -34,7 +43,8 @@ export class FetchGameInfoService {
   totalApp: number;
   failureApp: Record<FailureReason, number>;
   successApp: number;
-  logger: ReturnType<typeof fgiLoggerBuilder>;
+  logger: ReturnType<typeof fgiLoggerBuilder>[0];
+  loggerPaths: string[];
 
   /* loop variables */
   modifiedSince: number | null;
@@ -56,7 +66,10 @@ export class FetchGameInfoService {
       retry_failed: 0,
     };
     this.successApp = 0;
-    this.logger = fgiLoggerBuilder();
+    const loggerBuilt = fgiLoggerBuilder();
+    this.logger = loggerBuilt[0];
+    this.loggerPaths = loggerBuilt.slice(1) as [string, string];
+
     this.modifiedSince = null;
     this.retryAppids = [];
     this.haveMoreResults = true;
@@ -477,6 +490,7 @@ export class FetchGameInfoService {
       },
       `fetchGameInfo completed on ${new Date().toLocaleTimeString()} (took ${formatMs(elapsedTime)})`,
     );
+    orphanLogFiles.push(...this.loggerPaths);
   }
 }
 
@@ -497,7 +511,8 @@ export class PlayerCountService {
   totalApps: number;
   successApps: number;
   failureApps: Record<number, number>;
-  logger: ReturnType<typeof pcLoggerBuilder>;
+  logger: ReturnType<typeof pcLoggerBuilder>[0];
+  loggerPaths: string[];
 
   chunkStat: Record<number, "waiting" | "pending" | "done">;
   waitSignal: Promise<void> | null;
@@ -508,7 +523,9 @@ export class PlayerCountService {
     this.successApps = 0;
     this.failureApps = {};
 
-    this.logger = pcLoggerBuilder();
+    const loggerBuilt = pcLoggerBuilder();
+    this.logger = loggerBuilt[0];
+    this.loggerPaths = loggerBuilt.slice(1) as [string, string];
     this.waitSignal = null;
 
     if (!process.env.APP_STATE_ID) {
@@ -736,5 +753,21 @@ export class PlayerCountService {
       },
       `All playercount fetched on ${new Date().toLocaleTimeString()} (took ${formatMs(elapsedTime)})`,
     );
+    orphanLogFiles.push(...this.loggerPaths);
+  }
+}
+
+export class LoggerZipperService {
+  async zipPossibleLogs() {
+    const time = new Date().getTime();
+    for (const filePath of orphanLogFiles) {
+      try {
+        const compressed = await gzip(await Bun.file(filePath).arrayBuffer());
+        await Bun.write(filePath + `-${time}.gz`, compressed.buffer);
+        await unlink(filePath);
+      } catch (e) {
+        // ignore
+      }
+    }
   }
 }

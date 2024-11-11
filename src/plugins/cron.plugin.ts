@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import { cron as cronPlugin } from "@elysiajs/cron";
 import {
   FetchGameInfoService,
+  LoggerZipperService,
   PlayerCountService,
 } from "@/services/cron.service";
 
@@ -26,6 +27,17 @@ export const cron = new Elysia({ prefix: "/cron" })
       run: async () => {
         const service = new PlayerCountService();
         await service.start();
+      },
+    }),
+  )
+  .use(
+    cronPlugin({
+      name: "compressLogs",
+      pattern: "0 12 * * * *",
+      timezone: "Asia/Seoul",
+      run: async () => {
+        const service = new LoggerZipperService();
+        await service.zipPossibleLogs();
       },
     }),
   )
