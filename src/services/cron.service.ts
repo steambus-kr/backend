@@ -395,6 +395,9 @@ export class FetchGameInfoService {
 
   async start() {
     const startTime = performance.now();
+    this.logger.info(
+      `FetchGameInfo starting on ${new Date().toLocaleTimeString()}`,
+    );
 
     while (this.haveMoreResults) {
       this.iteration++;
@@ -469,7 +472,7 @@ export class FetchGameInfoService {
         success: this.successApp,
         failure: this.failureApp,
       },
-      `fetchGameInfo completed (took ${formatMs(elapsedTime)})`,
+      `fetchGameInfo completed on ${new Date().toLocaleTimeString()} (took ${formatMs(elapsedTime)})`,
     );
   }
 }
