@@ -578,6 +578,18 @@ export class PlayerCountService {
     };
   }
 
+  async saveSingleCount<
+    T extends Awaited<ReturnType<typeof this.getPlayerCount>>,
+  >(data: T extends { ok: true } ? T : never) {
+    await db.playerCount.create({
+      data: {
+        date: new Date(),
+        app_id: data.appId,
+        count: data.count,
+      },
+    });
+  }
+
   async getMaxChunkIdx(): Promise<number> {
     const r = await db.game.count();
     return Math.floor(r / APP_CHUNK_SIZE);
