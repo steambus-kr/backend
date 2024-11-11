@@ -10,6 +10,7 @@ datasource db {
 model State {
   id                Int       @id
   last_fetched_info DateTime?
+  last_fetched_pc   DateTime?
 }
 
 model Game {
