@@ -5,7 +5,6 @@ import {
   LoggerZipperService,
   PlayerCountService,
 } from "@/services/cron.service";
-import { logger } from "@/logger";
 
 export const cron = new Elysia({ prefix: "/cron" })
   .use(

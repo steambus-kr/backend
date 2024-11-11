@@ -1,4 +1,4 @@
-import { fgiLoggerBuilder, pcLoggerBuilder, logger } from "@/logger";
+import { fgiLoggerBuilder, pcLoggerBuilder } from "@/logger";
 import { db } from "@/db";
 import { JSDOM } from "jsdom";
 import {
@@ -10,7 +10,7 @@ import {
 } from "@/types";
 import { formatMs, timeout } from "@/utils";
 import { gzip } from "node-gzip";
-import { unlink, exists } from "node:fs/promises";
+import { unlink } from "node:fs/promises";
 
 const APP_CHUNK_SIZE = 100;
 const PC_CHUNK_SIZE = 300;
@@ -81,7 +81,6 @@ export class FetchGameInfoService {
     if (!state) {
       return { ok: false };
     }
-    logger.info(state);
 
     if (
       !state.last_fetched_info ||
