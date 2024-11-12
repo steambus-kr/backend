@@ -47,7 +47,7 @@ export const cron = new Elysia({ prefix: "/cron" })
       run: async () => {
         const startTime = new Date();
         logger.info(
-          `Starting fetchGameInfo cron on ${formatter.format(startTime)}`,
+          `Starting fetchPlayerCount cron on ${formatter.format(startTime)}`,
         );
         const service = new PlayerCountService();
         await service.start();
@@ -57,7 +57,7 @@ export const cron = new Elysia({ prefix: "/cron" })
             success: service.successApps,
             failure: service.failureApps,
           },
-          `fetchGameInfo cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(service.elapsedTime)}.`,
+          `fetchPlayerCount cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(service.elapsedTime)}.`,
         );
       },
     }),
