@@ -609,7 +609,7 @@ export class PlayerCountService {
             `rate limited while getting response of app ${appid}, will be retried`,
           );
           await this.waitForRateLimit();
-          return this.getPlayerCount(appid);
+          return await this.getPlayerCount(appid);
         default:
           await this.addFailure(response.status);
           this.logger.error(
