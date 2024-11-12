@@ -1,16 +1,35 @@
 import { createPinoLogger, pino } from "@bogeychan/elysia-logger";
-import { join } from "path";
-import { createWriteStream, existsSync, mkdirSync } from "fs";
+import { join, dirname, resolve } from "path";
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  renameSync,
+  rmSync,
+} from "fs";
 import pretty from "pino-pretty";
+import { Glob } from "bun";
+import { gzip } from "node-gzip";
 
-const logRoot = process.env.LOG_ROOT ?? "logs";
-if (!existsSync(logRoot)) {
-  mkdirSync(logRoot);
+const logRoot = resolve(process.env.LOG_ROOT ?? "logs");
+console.log(logRoot);
+
+// 로그 초기화 및 기존 로그 압축
+if (existsSync(logRoot)) {
+  const g = new Glob("**/*");
+  const t = new Date().getTime();
+  for (const fileName of g.scanSync(logRoot)) {
+    const file = join(logRoot, fileName);
+    const compressed = await gzip(await Bun.file(file).arrayBuffer());
+    await Bun.write(file + ".gz", compressed.buffer);
+    rmSync(file);
+  }
+  renameSync(logRoot, join(dirname(logRoot), `archived-${t}`));
 }
+mkdirSync(logRoot);
 
-const t = new Date();
-export const logFilePath = join(logRoot, `log-${t}.stream.out`);
-export const errorFilePath = join(logRoot, `error-${t}.stream.out`);
+export const logFilePath = join(logRoot, `log.stream.out`);
+export const errorFilePath = join(logRoot, `error.stream.out`);
 const logStream = createWriteStream(logFilePath);
 const errorStream = createWriteStream(errorFilePath);
 
@@ -88,6 +107,7 @@ export function pcLoggerBuilder() {
     .slice(0, -1);
   const nowTime = new Intl.DateTimeFormat("ko", {
     timeStyle: "medium",
+    hour12: false,
     timeZone: "Asia/Seoul",
   })
     .format(now)
