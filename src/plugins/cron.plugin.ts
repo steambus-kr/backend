@@ -65,7 +65,7 @@ export const cron = new Elysia({ prefix: "/cron" })
   .use(
     cronPlugin({
       name: "compressLogs",
-      pattern: "0 12 * * * *",
+      pattern: "0 0 */1 * * *",
       timezone: "Asia/Seoul",
       run: async () => {
         const service = new LoggerZipperService();
