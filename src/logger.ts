@@ -16,7 +16,8 @@ console.log(logRoot);
 
 // 로그 초기화 및 기존 로그 압축
 if (existsSync(logRoot)) {
-  const g = new Glob("**/*");
+  // 이중 압축을 피하기 위해 .out으로 고정
+  const g = new Glob("**/*.out");
   const t = new Date().getTime();
   for (const fileName of g.scanSync(logRoot)) {
     const file = join(logRoot, fileName);
@@ -63,9 +64,9 @@ export function fgiLoggerBuilder() {
     .slice(0, -1);
   const logDir = join(logRoot, "fgi.out.d");
   const errorLogDir = join(logRoot, "fgi.error.d");
-  const logPath = join(logDir, nowDate);
-  const errorLogPath = join(errorLogDir, nowDate);
-  // yy. mm. dd -> yy-mm-dd
+  const logPath = join(logDir, nowDate + ".out");
+  const errorLogPath = join(errorLogDir, nowDate + ".out");
+  // yy. mm. dd -> yy-mm-dd.out
   if (!existsSync(logDir)) {
     mkdirSync(logDir, { recursive: true });
   }
@@ -115,8 +116,8 @@ export function pcLoggerBuilder() {
     .replaceAll(":", "-");
   const logDir = join(logRoot, "pc", `${nowDate}.out.d`);
   const errorLogDir = join(logRoot, "pc", `${nowDate}.error.d`);
-  const logPath = join(logDir, nowTime);
-  const errorLogPath = join(errorLogDir, nowTime);
+  const logPath = join(logDir, nowTime + ".out");
+  const errorLogPath = join(errorLogDir, nowTime + ".out");
   // yy. mm. dd -> yy-mm-dd
   if (!existsSync(logDir)) {
     mkdirSync(logDir, { recursive: true });
