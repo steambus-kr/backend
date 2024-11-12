@@ -62,17 +62,6 @@ export const cron = new Elysia({ prefix: "/cron" })
       },
     }),
   )
-  .use(
-    cronPlugin({
-      name: "compressLogs",
-      pattern: "0 0 */1 * * *",
-      timezone: "Asia/Seoul",
-      run: async () => {
-        const service = new LoggerZipperService();
-        await service.zipPossibleLogs();
-      },
-    }),
-  )
   .get("/health/fgi", async ({ error }) => {
     const { ok } = await FetchGameInfoService.healthCheck();
     if (!ok) return error(512);
