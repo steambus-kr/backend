@@ -6,6 +6,12 @@ import {
   PlayerCountService,
 } from "@/services/cron.service";
 import { logger } from "@/logger";
+import { formatMs } from "@/utils";
+
+const formatter = new Intl.DateTimeFormat("en", {
+  dateStyle: "medium",
+  timeStyle: "medium",
+});
 
 export const cron = new Elysia({ prefix: "/cron" })
   .use(logger.into())
@@ -15,9 +21,21 @@ export const cron = new Elysia({ prefix: "/cron" })
       pattern: "0 0 * * * *",
       timezone: "Asia/Seoul",
       run: async () => {
+        const startTime = new Date();
+        logger.info(
+          `Starting fetchGameInfo cron on ${formatter.format(startTime)}`,
+        );
         const service = new FetchGameInfoService();
         await service.init();
         await service.start();
+        logger.info(
+          {
+            total: service.totalApp,
+            success: service.successApp,
+            failure: service.failureApp,
+          },
+          `fetchGameInfo cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(service.elapsedTime)}.`,
+        );
       },
     }),
   )
@@ -27,8 +45,20 @@ export const cron = new Elysia({ prefix: "/cron" })
       pattern: "0 */30 * * * *",
       timezone: "Asia/Seoul",
       run: async () => {
+        const startTime = new Date();
+        logger.info(
+          `Starting fetchGameInfo cron on ${formatter.format(startTime)}`,
+        );
         const service = new PlayerCountService();
         await service.start();
+        logger.info(
+          {
+            total: service.totalApps,
+            success: service.successApps,
+            failure: service.failureApps,
+          },
+          `fetchGameInfo cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(service.elapsedTime)}.`,
+        );
       },
     }),
   )

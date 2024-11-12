@@ -40,6 +40,8 @@ export class FetchGameInfoService {
   successApp: number;
   logger: ReturnType<typeof fgiLoggerBuilder>[0];
   loggerPaths: string[];
+  startTime: number;
+  elapsedTime: number;
 
   /* loop variables */
   modifiedSince: number | null;
@@ -64,6 +66,8 @@ export class FetchGameInfoService {
     const loggerBuilt = fgiLoggerBuilder();
     this.logger = loggerBuilt[0];
     this.loggerPaths = loggerBuilt.slice(1) as [string, string];
+    this.startTime = 0;
+    this.elapsedTime = 0;
 
     this.modifiedSince = null;
     this.retryAppids = [];
@@ -405,7 +409,7 @@ export class FetchGameInfoService {
   }
 
   async start() {
-    const startTime = performance.now();
+    this.startTime = performance.now();
     this.logger.info(
       `FetchGameInfo starting on ${new Date().toLocaleTimeString()}`,
     );
@@ -476,14 +480,14 @@ export class FetchGameInfoService {
       );
     }
 
-    const elapsedTime = performance.now() - startTime;
+    this.elapsedTime = performance.now() - this.startTime;
     this.logger.info(
       {
         total: this.totalApp,
         success: this.successApp,
         failure: this.failureApp,
       },
-      `fetchGameInfo completed on ${new Date().toLocaleTimeString()} (took ${formatMs(elapsedTime)})`,
+      `fetchGameInfo completed on ${new Date().toLocaleTimeString()} (took ${formatMs(this.elapsedTime)})`,
     );
     orphanLogFiles.push(...this.loggerPaths);
   }
@@ -509,6 +513,9 @@ export class PlayerCountService {
   logger: ReturnType<typeof pcLoggerBuilder>[0];
   loggerPaths: string[];
 
+  startTime: number;
+  elapsedTime: number;
+
   chunkStat: Record<number, "waiting" | "pending" | "done">;
   waitSignal: Promise<void> | null;
 
@@ -522,6 +529,9 @@ export class PlayerCountService {
     this.logger = loggerBuilt[0];
     this.loggerPaths = loggerBuilt.slice(1) as [string, string];
     this.waitSignal = null;
+
+    this.startTime = 0;
+    this.elapsedTime = 0;
 
     if (!process.env.APP_STATE_ID) {
       this.logger.error("APP_STATE_ID not set");
@@ -680,7 +690,7 @@ export class PlayerCountService {
 
   async start() {
     const startDate = new Date();
-    const startPerformance = performance.now();
+    this.startTime = performance.now();
     const maxIdx = await this.getMaxChunkIdx();
     this.logger.info(
       `Starting PlayerCount fetch on ${startDate.toLocaleTimeString()}, total ${maxIdx + 1} chunks`,
@@ -739,14 +749,14 @@ export class PlayerCountService {
       this.logger.info(`Error while saving state: ${e}`);
     }
 
-    const elapsedTime = performance.now() - startPerformance;
+    this.elapsedTime = performance.now() - this.startTime;
     this.logger.info(
       {
         total: this.totalApps,
         success: this.successApps,
         failure: this.failureApps,
       },
-      `All playercount fetched on ${new Date().toLocaleTimeString()} (took ${formatMs(elapsedTime)})`,
+      `All playercount fetched on ${new Date().toLocaleTimeString()} (took ${formatMs(this.elapsedTime)})`,
     );
     await this.removeOutdated();
     orphanLogFiles.push(...this.loggerPaths);
