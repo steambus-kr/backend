@@ -8,8 +8,9 @@ if (!existsSync(logRoot)) {
   mkdirSync(logRoot);
 }
 
-export const logFilePath = join(logRoot, "log.stream.out");
-export const errorFilePath = join(logRoot, "error.stream.out");
+const t = new Date();
+export const logFilePath = join(logRoot, `log-${t}.stream.out`);
+export const errorFilePath = join(logRoot, `error-${t}.stream.out`);
 const logStream = createWriteStream(logFilePath);
 const errorStream = createWriteStream(errorFilePath);
 
