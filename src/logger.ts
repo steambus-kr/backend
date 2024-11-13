@@ -112,7 +112,6 @@ export function pcLoggerBuilder() {
     timeZone: "Asia/Seoul",
   })
     .format(now)
-    .split(" ")[1]
     .replaceAll(":", "-");
   const logDir = join(logRoot, "pc", `${nowDate}.out.d`);
   const errorLogDir = join(logRoot, "pc", `${nowDate}.error.d`);
