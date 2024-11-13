@@ -4,6 +4,7 @@ import {
   FetchGameInfoService,
   LoggerZipperService,
   PlayerCountService,
+  ZipperService,
 } from "@/services/cron.service";
 import { logger } from "@/logger";
 import { formatMs } from "@/utils";
@@ -25,16 +26,43 @@ export const cron = new Elysia({ prefix: "/cron" })
         logger.info(
           `Starting fetchGameInfo cron on ${formatter.format(startTime)}`,
         );
-        const service = new FetchGameInfoService();
-        await service.init();
-        await service.start();
-        logger.info(
-          {
-            total: service.totalApp,
-            success: service.successApp,
-            failure: service.failureApp,
-          },
-          `fetchGameInfo cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(service.elapsedTime)}.`,
+        let service: FetchGameInfoService;
+        try {
+          service = new FetchGameInfoService();
+          await service.init();
+        } catch (e) {
+          logger.fatal(`Error while initializing FetchGameInfoService: ${e}`);
+          return;
+        }
+        const zipper = new ZipperService();
+        let fileWillBeZipped: string[] = [];
+        try {
+          const result = await service.start();
+          fileWillBeZipped = result.logShouldBeZipped;
+          logger.info(
+            {
+              total: service.totalApp,
+              success: service.successApp,
+              failure: service.failureApp,
+            },
+            `fetchGameInfo cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(service.elapsedTime)}.`,
+          );
+        } catch (e) {
+          logger.error(
+            `Unexpected error while running FetchGameinfoService: ${e}`,
+          );
+          fileWillBeZipped = service.loggerPaths;
+        }
+        await Promise.all(
+          fileWillBeZipped.map(async (filePath) => {
+            const r = await zipper.zipFile(filePath);
+            if (!r.ok) {
+              logger.warn(
+                `file not zipped due to unexpected error: ${filePath}`,
+              );
+            }
+            return r;
+          }),
         );
       },
     }),
@@ -49,15 +77,42 @@ export const cron = new Elysia({ prefix: "/cron" })
         logger.info(
           `Starting fetchPlayerCount cron on ${formatter.format(startTime)}`,
         );
-        const service = new PlayerCountService();
-        await service.start();
-        logger.info(
-          {
-            total: service.totalApps,
-            success: service.successApps,
-            failure: service.failureApps,
-          },
-          `fetchPlayerCount cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(service.elapsedTime)}.`,
+        let service: PlayerCountService;
+        try {
+          service = new PlayerCountService();
+        } catch (e) {
+          logger.fatal(`Error while initializing PlayerCountService: ${e}`);
+          return;
+        }
+        const zipper = new ZipperService();
+        let fileWillBeZipped: string[] = [];
+        try {
+          const result = await service.start();
+          fileWillBeZipped = result.logShouldBeZipped;
+          logger.info(
+            {
+              total: service.totalApps,
+              success: service.successApps,
+              failure: service.failureApps,
+            },
+            `fetchPlayerCount cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(service.elapsedTime)}.`,
+          );
+        } catch (e) {
+          logger.error(
+            `Unexpected error while running PlayerCountService: ${e}`,
+          );
+          fileWillBeZipped = service.loggerPaths;
+        }
+        await Promise.all(
+          fileWillBeZipped.map(async (filePath) => {
+            const r = await zipper.zipFile(filePath);
+            if (!r.ok) {
+              logger.warn(
+                `file not zipped due to unexpected error: ${filePath}`,
+              );
+            }
+            return r;
+          }),
         );
       },
     }),

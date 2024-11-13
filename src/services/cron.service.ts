@@ -22,8 +22,6 @@ const fetchHeader = {
   "Accepted-Language": "ko-KR,en-US;q=0.9,en;q=0.8",
 };
 
-const orphanLogFiles: string[] = [];
-
 type FailureReason =
   | "region_lock"
   | "web_description_parse"
@@ -489,7 +487,9 @@ export class FetchGameInfoService {
       },
       `fetchGameInfo completed on ${new Date().toLocaleTimeString()} (took ${formatMs(this.elapsedTime)})`,
     );
-    orphanLogFiles.push(...this.loggerPaths);
+
+    const zipper = new ZipperService();
+    return { logShouldBeZipped: this.loggerPaths };
   }
 }
 
@@ -759,7 +759,7 @@ export class PlayerCountService {
       `All playercount fetched on ${new Date().toLocaleTimeString()} (took ${formatMs(this.elapsedTime)})`,
     );
     await this.removeOutdated();
-    orphanLogFiles.push(...this.loggerPaths);
+    return { logShouldBeZipped: this.loggerPaths };
   }
 
   async removeOutdated() {
@@ -783,17 +783,15 @@ export class PlayerCountService {
   }
 }
 
-export class LoggerZipperService {
-  async zipPossibleLogs() {
-    const time = new Date().getTime();
-    for (const filePath of orphanLogFiles) {
-      try {
-        const compressed = await gzip(await Bun.file(filePath).arrayBuffer());
-        await Bun.write(filePath + `-${time}.gz`, compressed.buffer);
-        await unlink(filePath);
-      } catch (e) {
-        // ignore
-      }
+export class ZipperService {
+  async zipFile(filePath: string, nameTo?: string): Promise<{ ok: boolean }> {
+    try {
+      const compressed = await gzip(await Bun.file(filePath).arrayBuffer());
+      await Bun.write(filePath + `.gz`, compressed.buffer);
+      await unlink(filePath);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false };
     }
   }
 }
