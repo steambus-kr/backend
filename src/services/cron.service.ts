@@ -87,7 +87,7 @@ export class FetchGameInfoService {
     if (
       !state.last_fetched_info ||
       state.last_fetched_info.getTime() <
-        new Date().getTime() - 1000 * 60 * 60 * 24
+        new Date().getTime() - 1000 * 60 * 60 * 36
     ) {
       return { ok: false };
     }
