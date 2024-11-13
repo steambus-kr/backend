@@ -575,7 +575,7 @@ export class PlayerCountService {
 
     if (
       !state.last_fetched_pc ||
-      state.last_fetched_pc.getTime() < new Date().getTime() - 1000 * 60 * 30
+      state.last_fetched_pc.getTime() < new Date().getTime() - 1000 * 60 * 60
     ) {
       return { ok: false };
     }
