@@ -2,7 +2,6 @@ import { Elysia, t } from "elysia";
 import { cron as cronPlugin } from "@elysiajs/cron";
 import {
   FetchGameInfoService,
-  LoggerZipperService,
   PlayerCountService,
   ZipperService,
 } from "@/services/cron.service";
