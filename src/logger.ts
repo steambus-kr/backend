@@ -25,7 +25,11 @@ if (existsSync(logRoot)) {
     await Bun.write(file + ".gz", compressed.buffer);
     rmSync(file);
   }
-  renameSync(logRoot, join(dirname(logRoot), `archived-${t}`));
+  const archivedLogsPath = join(dirname(__dirname), "archived-logs");
+  if (!existsSync(archivedLogsPath)) {
+    mkdirSync(archivedLogsPath);
+  }
+  renameSync(logRoot, join(archivedLogsPath, `archived-${t}`));
 }
 mkdirSync(logRoot);
 
