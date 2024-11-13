@@ -21,6 +21,12 @@ export const cron = new Elysia({ prefix: "/cron" })
       pattern: "0 15 0 * * *", // fetchPlayerCount와의 동시 실행으로 인한 rate limit을 피하기 위해 살짝 비틈
       timezone: "Asia/Seoul",
       run: async () => {
+        if (
+          process.env.DISABLE_FETCH_GAME_INFO &&
+          process.env.DISABLE_FETCH_GAME_INFO !== "false"
+        ) {
+          return;
+        }
         const startTime = new Date();
         logger.info(
           `Starting fetchGameInfo cron on ${formatter.format(startTime)}`,
@@ -72,6 +78,12 @@ export const cron = new Elysia({ prefix: "/cron" })
       pattern: "0 */30 * * * *",
       timezone: "Asia/Seoul",
       run: async () => {
+        if (
+          process.env.DISABLE_FETCH_PLAYER_COUNT &&
+          process.env.DISABLE_FETCH_PLAYER_COUNT !== "false"
+        ) {
+          return;
+        }
         const startTime = new Date();
         logger.info(
           `Starting fetchPlayerCount cron on ${formatter.format(startTime)}`,
