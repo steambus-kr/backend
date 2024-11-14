@@ -14,7 +14,7 @@ import { unlink } from "node:fs/promises";
 
 const APP_CHUNK_SIZE = 100;
 const PC_CHUNK_SIZE = 200;
-const APPDETAIL_TMR_DELAY = 180000; // 3min
+const APPDETAIL_TMR_DELAY = 600000; // 10min
 const PC_TMR_DELAY = 30000; // 30s
 const CHUNK_DELAY = 5000;
 
@@ -126,6 +126,11 @@ export class FetchGameInfoService {
     }
   }
 
+  /**
+   * Steam Front IP 밴 가능성 있음, 쓰지 말 것
+   *
+   * @deprecated
+   */
   async parseWeb(
     appid: number,
   ): Promise<
@@ -214,9 +219,17 @@ export class FetchGameInfoService {
     };
   }
 
+  async getAppDetails(): Promise<
+    | { ok: true; data: Omit<IAppDetailsBody[number]["data"], "release_date"> }
+    | { ok: false; willBeRetried: boolean }
+  > {
+    // todo: fetch from steam api
+  }
+
   async saveGameInfo(
     appid: number,
   ): Promise<{ ok: boolean; willBeRetried: boolean }> {
+    // todo: replace parseWeb with getAppDetails
     const appDetails_data = await this.parseWeb(appid);
     if (!appDetails_data.ok) {
       return { ok: false, willBeRetried: appDetails_data.willBeRetried };
@@ -488,7 +501,6 @@ export class FetchGameInfoService {
       `fetchGameInfo completed on ${new Date().toLocaleTimeString()} (took ${formatMs(this.elapsedTime)})`,
     );
 
-    const zipper = new ZipperService();
     return { logShouldBeZipped: this.loggerPaths };
   }
 }
