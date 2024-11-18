@@ -219,27 +219,44 @@ export class FetchGameInfoService {
     };
   }
 
-  async getAppDetails(appid: number): Promise<
+  async getAppDetails(
+    appid: number,
+  ): Promise<
     | { ok: true; data: IAppDetailsBody[number]["data"] }
     | { ok: false; willBeRetried: boolean }
   > {
-    const data = await fetch(`http://store.steampowered.com/api/appdetails?appids=${appid}`)
+    const data = await fetch(
+      `http://store.steampowered.com/api/appdetails?appids=${appid}`,
+    );
     if (!data.ok) {
       switch (data.status) {
         case 422:
         case 403:
-          this.logger.warn(`HTTP error while fetching game ${appid} appDetails: ${data.status} ${data.statusText} (will be retried)`)
+          this.logger.warn(
+            `HTTP error while fetching game ${appid} appDetails: ${data.status} ${data.statusText} (will be retried)`,
+          );
           await this.markAsRetry(appid);
           return { ok: false, willBeRetried: true };
         default:
-          this.logger.error(`Unexpected HTTP error while fetching game ${appid} appDetails: ${data.status} ${data.statusText}`);
+          this.logger.error(
+            `Unexpected HTTP error while fetching game ${appid} appDetails: ${data.status} ${data.statusText}`,
+          );
           return { ok: false, willBeRetried: false };
       }
     }
 
     try {
-      const json: IAppDetailsBody = await data.json();
-      return { ok: true, data: json[appid].data };
+      const json: IAppDetailsBody<{ id: number; description: string }> =
+        await data.json();
+      return {
+        ok: true,
+        data: {
+          ...json[appid].data,
+          genres: json[appid].data.genres?.map?.(
+            ({ description }) => description,
+          ),
+        },
+      };
     } catch (e) {
       this.logger.error(`Error while parsing ${appid} appDetails json: ${e}`);
       return { ok: false, willBeRetried: false };
