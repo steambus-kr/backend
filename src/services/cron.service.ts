@@ -219,18 +219,37 @@ export class FetchGameInfoService {
     };
   }
 
-  async getAppDetails(): Promise<
-    | { ok: true; data: Omit<IAppDetailsBody[number]["data"], "release_date"> }
+  async getAppDetails(appid: number): Promise<
+    | { ok: true; data: IAppDetailsBody[number]["data"] }
     | { ok: false; willBeRetried: boolean }
   > {
-    // todo: fetch from steam api
+    const data = await fetch(`http://store.steampowered.com/api/appdetails?appids=${appid}`)
+    if (!data.ok) {
+      switch (data.status) {
+        case 422:
+        case 403:
+          this.logger.warn(`HTTP error while fetching game ${appid} appDetails: ${data.status} ${data.statusText} (will be retried)`)
+          await this.markAsRetry(appid);
+          return { ok: false, willBeRetried: true };
+        default:
+          this.logger.error(`Unexpected HTTP error while fetching game ${appid} appDetails: ${data.status} ${data.statusText}`);
+          return { ok: false, willBeRetried: false };
+      }
+    }
+
+    try {
+      const json: IAppDetailsBody = await data.json();
+      return { ok: true, data: json[appid].data };
+    } catch (e) {
+      this.logger.error(`Error while parsing ${appid} appDetails json: ${e}`);
+      return { ok: false, willBeRetried: false };
+    }
   }
 
   async saveGameInfo(
     appid: number,
   ): Promise<{ ok: boolean; willBeRetried: boolean }> {
-    // todo: replace parseWeb with getAppDetails
-    const appDetails_data = await this.parseWeb(appid);
+    const appDetails_data = await this.getAppDetails(appid);
     if (!appDetails_data.ok) {
       return { ok: false, willBeRetried: appDetails_data.willBeRetried };
     }
@@ -724,7 +743,7 @@ export class PlayerCountService {
           this.chunkStat[i] = "done";
           return r;
         })
-      ).filter<IPlayerCountSuccess>((r): r is IPlayerCountSuccess => !!r.ok);
+      ).filter<IPlayerCountSuccess>((r): r is IPlayerCountSuccess => r.ok);
       this.logger.info(`Saving chunk ${i} (${result.length} successful apps)`);
       try {
         await db.playerCount.createMany({
@@ -796,7 +815,7 @@ export class PlayerCountService {
 }
 
 export class ZipperService {
-  async zipFile(filePath: string, nameTo?: string): Promise<{ ok: boolean }> {
+  async zipFile(filePath: string): Promise<{ ok: boolean }> {
     try {
       const compressed = await gzip(await Bun.file(filePath).arrayBuffer());
       await Bun.write(filePath + `.gz`, compressed.buffer);
