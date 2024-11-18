@@ -11,14 +11,14 @@ export interface IGetAppListBody {
   };
 }
 
-export type IAppDetailsBody = Record<
+export type IAppDetailsBody<G = string> = Record<
   number,
   {
     success: boolean;
     data: {
       name: string;
       short_description: string;
-      genres?: string[];
+      genres?: G[];
       header_image: string;
       release_date: {
         coming_soom: boolean;
