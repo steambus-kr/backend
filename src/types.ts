@@ -60,4 +60,5 @@ export interface RecommendFilter {
   positive_review_max: number;
   review_ratio_min: number;
   review_ratio_max: number;
+  genre: string;
 }

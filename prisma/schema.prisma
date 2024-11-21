@@ -19,12 +19,13 @@ model Game {
   description     String        @db.Text
   owner_count     Int
   release_date    String
-  genres          Genre[]
   player_count    PlayerCount[]
   thumbnail_src   String
   review_positive Int
   review_negative Int
   review_ratio    Float?
+  Genre           Genre?        @relation(fields: [genreGenre_name], references: [genre_name])
+  genreGenre_name String?
 }
 
 model PlayerCount {
