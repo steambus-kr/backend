@@ -119,13 +119,6 @@ interface IRefinedGameInfo {
   genres: string[];
 }
 
-// TS 씨발련 ㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗㅗ
-// 마소 개새끼들아 일좀해
-// 아오 씨발 걍
-type RequiredWithoutUndefined<T> = {
-  [K in keyof T]-?: T[K] extends infer R | undefined ? R : never;
-};
-
 class GameService {
   constructor(private readonly gameId: number) {}
 
@@ -136,7 +129,6 @@ class GameService {
       },
       include: {
         genres: true,
-        player_count: true,
       },
     });
 
@@ -144,24 +136,7 @@ class GameService {
       return null;
     }
 
-    const obj_player_count = game.player_count.reduce(
-      (p, c) => {
-        if (!p.latest || !p.peak) return { latest: undefined, peak: undefined };
-        // TS 씨발련 ㅋㅋ
-        const n = { ...(p as RequiredWithoutUndefined<typeof p>) };
-        if (c.date.getTime() > n.latest.date.getTime()) {
-          n.latest = c;
-        }
-        if (c.count > n.peak.count) {
-          n.peak = c;
-        }
-        return n;
-      },
-      {
-        latest: game.player_count.at(0),
-        peak: game.player_count.at(0),
-      },
-    );
+    const obj_player_count = await this.getPlayerCountData();
 
     return {
       app_id: game.app_id,
@@ -193,5 +168,31 @@ class GameService {
       },
       genres: game.genres.map(({ genre_name }) => genre_name),
     };
+  }
+
+  async getPlayerCountData() {
+    const whereClause = {
+      app_id: this.gameId,
+      date: {
+        gte: new Date(new Date().getTime() - 1000 * 60 * 60 * 24),
+      }
+    }
+    const latest = await db.playerCount.findFirst({
+      where: whereClause,
+      orderBy: {
+        date: 'desc' // old first
+      }
+    });
+    const peak = await db.playerCount.findFirst({
+      where: whereClause,
+      orderBy: {
+        count: 'desc' // many first
+      }
+    });
+
+    return {
+      latest,
+      peak,
+    }
   }
 }
