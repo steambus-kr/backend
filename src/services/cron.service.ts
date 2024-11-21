@@ -8,7 +8,7 @@ import {
   ISteamSpy,
   ISteamUserStats,
 } from "@/types";
-import { formatMs, timeout } from "@/utils";
+import { calculateRatio, formatMs, timeout } from "@/utils";
 import { gzip } from "node-gzip";
 import { unlink } from "node:fs/promises";
 
@@ -324,14 +324,10 @@ export class FetchGameInfoService {
         review_positive: SteamSpy_data.positive,
         // review_ratio exception case
         // 1. 0 / 0 (positive=0, negative=0) should be 0, result to NaN
-        review_ratio:
-          SteamSpy_data.positive === 0
-            ? 0
-            : Math.min(
-                1,
-                SteamSpy_data.positive /
-                  (SteamSpy_data.positive + SteamSpy_data.negative),
-              ),
+        review_ratio: calculateRatio(
+          SteamSpy_data.positive,
+          SteamSpy_data.negative,
+        ),
         owner_count: await this.parseOwnerCount(SteamSpy_data.owners),
         genres: appDetails_data.data.genres
           ? {

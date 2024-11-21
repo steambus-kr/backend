@@ -26,3 +26,11 @@ export function timeout(ms: number): Promise<void> {
     setTimeout(resolve, ms);
   });
 }
+
+export function calculateRatio(positive: number, negative: number): number {
+  if (positive + negative === 0) {
+    return 0;
+  }
+
+  return positive / (positive + negative);
+}
