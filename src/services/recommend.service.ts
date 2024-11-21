@@ -119,7 +119,7 @@ interface IRefinedGameInfo {
   genres: string[];
 }
 
-class GameService {
+export class GameService {
   constructor(private readonly gameId: number) {}
 
   async getGameInfo(): Promise<IRefinedGameInfo | null> {
