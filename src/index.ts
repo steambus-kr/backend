@@ -3,12 +3,14 @@ import { swagger } from "@elysiajs/swagger";
 import { cron } from "./plugins/cron.plugin";
 import { config } from "dotenv";
 import { logger } from "./logger";
+import { recommend } from "@/plugins/recommend.plugin";
 
 config();
 
 const app = new Elysia({ prefix: "/api" })
   .use(swagger)
   .use(cron)
+  .use(recommend)
   .use(logger.into())
   .get("/health", async () => {
     return { healthof: "/api/health", ok: true };

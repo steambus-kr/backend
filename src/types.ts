@@ -1,3 +1,5 @@
+import { t } from "elysia";
+
 export interface IGetAppListBody {
   response: {
     apps: Array<{
@@ -62,3 +64,14 @@ export interface RecommendFilter {
   review_ratio_max: number;
   genre: string;
 }
+
+export const RecommendFilterValidation = t.Object({
+  owner_min: t.Optional(t.Number()),
+  player_min: t.Optional(t.Number()),
+  player_max: t.Optional(t.Number()),
+  positive_review_min: t.Optional(t.Number()),
+  positive_review_max: t.Optional(t.Number()),
+  review_ratio_min: t.Optional(t.Number()),
+  review_ratio_max: t.Optional(t.Number()),
+  genre: t.Optional(t.String()),
+});
