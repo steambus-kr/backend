@@ -172,15 +172,19 @@ export const cron = new Elysia({ prefix: "/cron" })
   .get("/status", async () => {
     return cronStatus;
   })
+  .get("/status/fgi", async () => {
+    return fetchGameInfoService === null
+      ? {}
+      : fetchGameInfoService.getSummary();
+  })
+  .get("/status/pc", async () => {
+    return playerCountService === null ? {} : playerCountService.getSummary();
+  })
   .get("/health/fgi", async ({ error }) => {
     const { ok } = await FetchGameInfoService.healthCheck();
     if (!ok) return error(512);
     return {
       ok: true,
-      running:
-        fetchGameInfoService === null
-          ? false
-          : await fetchGameInfoService.getSummary(),
     };
   })
   .get("/health/pc", async ({ error }) => {
@@ -188,10 +192,6 @@ export const cron = new Elysia({ prefix: "/cron" })
     if (!ok) return error(512);
     return {
       ok: true,
-      running:
-        playerCountService === null
-          ? false
-          : await playerCountService.getSummary(),
     };
   })
   .guard({
