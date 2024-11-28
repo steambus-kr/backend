@@ -373,14 +373,15 @@ export class FetchGameInfoService {
     appid: number,
     retryCount: number = 0,
   ): Promise<
-    { ok: true; data: IAppDetailsBody[number]["data"] } | { ok: false }
+    | { ok: true; data: IAppDetailsBody[number]["data"] }
+    | { ok: false; retryable: boolean }
   > {
     if (retryCount > APPDETAIL_MAX_RETRY) {
       this.logger.error(
         `Maximum retry (${retryCount}/${APPDETAIL_MAX_RETRY}) reached, breaking chain`,
       );
       this.failureApp["retry_failed"]++;
-      return { ok: false };
+      return { ok: false, retryable: true };
     }
     const data = await fetch(
       `http://store.steampowered.com/api/appdetails?appids=${appid}`,
@@ -399,7 +400,7 @@ export class FetchGameInfoService {
             `Unexpected HTTP error while fetching game ${appid} appDetails: ${data.status} ${data.statusText}`,
           );
           this.failureApp["appdetail_http"]++;
-          return { ok: false };
+          return { ok: false, retryable: false };
       }
     }
 
@@ -411,6 +412,7 @@ export class FetchGameInfoService {
         this.failureApp["appdetail_success"]++;
         return {
           ok: false,
+          retryable: false,
         };
       }
       return {
@@ -425,13 +427,28 @@ export class FetchGameInfoService {
     } catch (e) {
       this.logger.error(`Error while parsing ${appid} appDetails json: ${e}`);
       this.failureApp["appdetail_json"]++;
-      return { ok: false };
+      return { ok: false, retryable: false };
+    }
+  }
+
+  async markFreshed(appId: number) {
+    try {
+      await db.outdatedGame.delete({
+        where: {
+          app_id: appId,
+        },
+      });
+    } catch (e) {
+      this.logger.warn(`App ${appId} data outdated data deletion failed: ${e}`);
     }
   }
 
   async saveGameInfo(appid: number): Promise<{ ok: boolean }> {
     const appDetails_data = await this.getAppDetails(appid);
     if (!appDetails_data.ok) {
+      if (!appDetails_data.retryable) {
+        await this.markFreshed(appid);
+      }
       return { ok: false };
     }
     const SteamCMD = await fetch(`https://api.steamcmd.net/v1/info/${appid}`);
@@ -529,15 +546,7 @@ export class FetchGameInfoService {
     }
 
     this.logger.info(`Successfully saved app ${appid}`);
-    try {
-      await db.outdatedGame.delete({
-        where: {
-          app_id: appid,
-        },
-      });
-    } catch (e) {
-      this.logger.warn(`App ${appid} data outdated data deletion failed: ${e}`);
-    }
+    await this.markFreshed(appid);
     this.successApp++;
     return { ok: true };
   }
