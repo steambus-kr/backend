@@ -48,9 +48,7 @@ export class FetchGameInfoService {
   /* loop variables */
   modifiedSince: number | null;
   retryAppids: number[];
-  haveMoreResults: boolean;
-  lastAppid: number | null;
-  iteration: number;
+  chunks: number[][];
 
   constructor() {
     this.totalApp = 0;
@@ -76,9 +74,7 @@ export class FetchGameInfoService {
 
     this.modifiedSince = null;
     this.retryAppids = [];
-    this.haveMoreResults = true;
-    this.lastAppid = null;
-    this.iteration = 0;
+    this.chunks = [];
   }
 
   static async healthCheck() {
@@ -381,61 +377,95 @@ export class FetchGameInfoService {
     return { ok: true, willBeRetried: false };
   }
 
-  async fetchGameInfo(continue_with: number | null) {
+  async buildAppChunk() {
     this.logger.info(
-      `Fetching game information${this.modifiedSince ? ` since ${this.modifiedSince}` : ""}, ${continue_with ? `continue from id ${continue_with}` : "starting from first"}`,
+      `Building app chunks from app list${this.modifiedSince ? ` changed since ${this.modifiedSince}` : ""}`,
     );
 
-    const GetAppList_SearchParams = new URLSearchParams([
-      ["key", process.env.STEAM_KEY!],
-      ["include_games", "true"],
-      ["include_dlc", "false"],
-      ["include_software", "false"],
-      ["include_videos", "false"],
-      ["include_hardware", "false"],
-    ]);
-    if (this.modifiedSince !== null)
-      GetAppList_SearchParams.append(
-        "if_modified_since",
-        (this.modifiedSince / 1000).toString(),
+    let continue_with: number | null = null;
+    let haveMoreResults: boolean = true;
+    const appIds: number[] = [];
+    while (haveMoreResults) {
+      const GetAppList_SearchParams = new URLSearchParams([
+        ["key", process.env.STEAM_KEY!],
+        ["include_games", "true"],
+        ["include_dlc", "false"],
+        ["include_software", "false"],
+        ["include_videos", "false"],
+        ["include_hardware", "false"],
+      ]);
+      if (this.modifiedSince !== null)
+        GetAppList_SearchParams.append(
+          "if_modified_since",
+          (this.modifiedSince / 1000).toString(),
+        );
+      if (continue_with !== null)
+        GetAppList_SearchParams.append("last_appid", continue_with.toString());
+      const GetAppList = await fetch(
+        `https://api.steampowered.com/IStoreService/GetAppList/v1?${GetAppList_SearchParams.toString()}`,
       );
-    if (continue_with)
-      GetAppList_SearchParams.append("last_appid", continue_with.toString());
-    const GetAppList = await fetch(
-      `https://api.steampowered.com/IStoreService/GetAppList/v1?${GetAppList_SearchParams.toString()}`,
-    );
-    if (!GetAppList.ok) {
-      this.logger.error(
-        `HTTP error while fetching game list: ${GetAppList.status} ${GetAppList.statusText}`,
-      );
-      return;
-    }
-    let GetAppList_data: IGetAppListBody["response"];
-    try {
-      GetAppList_data = ((await GetAppList.json()) as IGetAppListBody).response;
-    } catch (e) {
-      this.logger.error(`Error while parsing json from GetAppList: ${e}`);
-      return null;
-    }
-    this.logger.info(
-      `Got GetAppList response: ${GetAppList_data.apps.length} games, have_more_results=${GetAppList_data.have_more_results}, last_appid=${GetAppList_data.last_appid}`,
-    );
-    this.totalApp += GetAppList_data.apps.length;
-    this.haveMoreResults = GetAppList_data.have_more_results;
-    this.lastAppid = GetAppList_data.last_appid;
-    const appListChunk: number[][] = [];
-    for (const [idx, { appid }] of Object.entries(GetAppList_data.apps)) {
-      const chunkIdx = Math.floor(parseInt(idx) / APP_CHUNK_SIZE);
-      if (!Array.isArray(appListChunk[chunkIdx])) {
-        appListChunk[chunkIdx] = [];
+      if (!GetAppList.ok) {
+        this.logger.error(
+          `HTTP error while fetching game list: ${GetAppList.status} ${GetAppList.statusText}`,
+        );
+        return { ok: false };
       }
-      appListChunk[chunkIdx].push(appid);
+      let GetAppList_data: IGetAppListBody["response"];
+      try {
+        GetAppList_data = ((await GetAppList.json()) as IGetAppListBody)
+          .response;
+      } catch (e) {
+        this.logger.error(`Error while parsing json from GetAppList: ${e}`);
+        return null;
+      }
+      this.logger.info(
+        `Got GetAppList response: ${GetAppList_data.apps.length} games, have_more_results=${GetAppList_data.have_more_results}, last_appid=${GetAppList_data.last_appid}`,
+      );
+      this.totalApp += GetAppList_data.apps.length;
+      haveMoreResults = GetAppList_data.have_more_results;
+      continue_with = GetAppList_data.last_appid;
+      GetAppList_data.apps.forEach(({ appid }) => {
+        appIds.push(appid);
+      });
+    }
+
+    for (const [idx, appid] of Object.entries(appIds)) {
+      const chunkIdx = Math.floor(parseInt(idx) / APP_CHUNK_SIZE);
+      if (!Array.isArray(this.chunks[chunkIdx])) {
+        this.chunks[chunkIdx] = [];
+      }
+      this.chunks[chunkIdx].push(appid);
     }
     this.logger.info(
-      `Built appListChunk: ${APP_CHUNK_SIZE} apps per chunk, ${appListChunk.length} chunk count`,
+      `Built appListChunk: ${APP_CHUNK_SIZE} apps per chunk, ${this.chunks.length} chunk count`,
+    );
+  }
+
+  async getSummary() {
+    const elapsed = performance.now() - this.startTime;
+
+    return {
+      elapsed,
+      elapsedHuman: formatMs(elapsed),
+      retrying: this.retrying,
+      willBeRetrieds: this.retryAppids.length,
+      processed: {
+        total: this.totalApp,
+        success: this.successApp,
+        failure: this.failureApp,
+      },
+    };
+  }
+
+  async start() {
+    this.startTime = performance.now();
+    this.logger.info(
+      `FetchGameInfo starting on ${new Date().toLocaleTimeString()}`,
     );
 
-    for (const [idx, chunk] of Object.entries(appListChunk)) {
+    await this.buildAppChunk();
+
+    for (const [idx, chunk] of Object.entries(this.chunks)) {
       this.logger.info(`Requesting chunk ${idx}`);
       try {
         const response = await Promise.all(
@@ -457,47 +487,6 @@ export class FetchGameInfoService {
       } catch (e) {
         this.logger.error(`Unexpected error on chunk ${idx}: ${e}`);
       }
-    }
-  }
-
-  async getSummary() {
-    const elapsed = performance.now() - this.startTime;
-
-    return {
-      elapsed,
-      elapsedHuman: formatMs(elapsed),
-      iteration: this.iteration,
-      haveMoreResults: this.haveMoreResults,
-      lastAppId: this.lastAppid,
-      retrying: this.retrying,
-      willBeRetrieds: this.retryAppids.length,
-      processed: {
-        total: this.totalApp,
-        success: this.successApp,
-        failure: this.failureApp,
-      },
-    };
-  }
-
-  async start() {
-    this.startTime = performance.now();
-    this.logger.info(
-      `FetchGameInfo starting on ${new Date().toLocaleTimeString()}`,
-    );
-
-    while (this.haveMoreResults) {
-      this.iteration++;
-      this.logger.info(`Calling fetchGameInfo iteration ${this.iteration}`);
-      const fetchResult = await this.fetchGameInfo(this.lastAppid);
-      if (!fetchResult) {
-        this.logger.info(`Breaking fetchGameInfo iteration`);
-        break;
-      }
-      /* now handled in fetchGameInfo
-      last_appid = fetchResult.last_appid;
-      have_more_results = fetchResult.have_more_results;
-      failed_appids = [...failed_appids, ...fetchResult.failed_appids];
-      */
     }
 
     // retry step
