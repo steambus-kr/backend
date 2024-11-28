@@ -77,6 +77,7 @@ export const cron = new Elysia({ prefix: "/cron" })
               total: fetchGameInfoService.totalApp,
               success: fetchGameInfoService.successApp,
               failure: fetchGameInfoService.failureApp,
+              summary: await fetchGameInfoService.getSummary(),
             },
             `fetchGameInfo cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(fetchGameInfoService.elapsedTime)}.`,
           );
@@ -144,6 +145,7 @@ export const cron = new Elysia({ prefix: "/cron" })
               total: playerCountService.totalApps,
               success: playerCountService.successApps,
               failure: playerCountService.failureApps,
+              summary: await playerCountService.getSummary(),
             },
             `fetchPlayerCount cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(playerCountService.elapsedTime)}.`,
           );
