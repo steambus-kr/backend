@@ -684,11 +684,13 @@ export class PlayerCountService {
   async getPlayerCount(
     appid: number,
     retryCount: number = 0,
+    retryBy?: number,
   ): Promise<IPlayerCountResponse> {
     if (retryCount > PC_MAX_RETRY) {
       this.logger.error(
         `Maximum retry (${retryCount}/${PC_MAX_RETRY}) reached, breaking chain`,
       );
+      await this.addFailure(retryBy ?? -1);
       return {
         ok: false,
       };
@@ -705,10 +707,14 @@ export class PlayerCountService {
         case 403:
           this.logger.error(
             { appid, status: response.status },
-            `rate limited while getting response of app ${appid}, will be retried`,
+            `rate limited while getting response of app ${appid} by ${response.status}, will be retried`,
           );
           await this.waitForRateLimit();
-          return await this.getPlayerCount(appid, retryCount + 1);
+          return await this.getPlayerCount(
+            appid,
+            retryCount + 1,
+            response.status,
+          );
         default:
           await this.addFailure(response.status);
           this.logger.error(
