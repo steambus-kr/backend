@@ -55,6 +55,7 @@ export class MarkOutdatedService {
         );
       if (continue_with !== null)
         GetAppList_SearchParams.append("last_appid", continue_with.toString());
+      // 스팀 API 개발자 대가리 존나 쎄게 치고싶다
       const GetAppList = await fetch(
         `https://api.steampowered.com/IStoreService/GetAppList/v1?${GetAppList_SearchParams.toString()}`,
       );
@@ -125,6 +126,26 @@ export class MarkOutdatedService {
       }),
     );
     this.logger.info(`Marked ${appIds.length} apps as outdated`);
+
+    try {
+      await db.state.upsert({
+        where: {
+          id: parseInt(process.env.APP_STATE_ID),
+        },
+        create: {
+          id: parseInt(process.env.APP_STATE_ID),
+          last_fetched_info: new Date(),
+        },
+        update: {
+          last_fetched_info: new Date(),
+        },
+      });
+    } catch (e) {
+      this.logger.warn(
+        `Unexpected error while saving last_fetched_info into DB: ${e}`,
+      );
+    }
+
     return this.loggerPaths;
   }
 }
@@ -587,26 +608,6 @@ export class FetchGameInfoService {
         this.logger.error(`Unexpected error on chunk ${idx}: ${e}`);
       }
       this.chunkStat.finishedChunks++;
-    }
-
-    try {
-      // skipping check of APP_STATE_ID, it will be checked in init
-      await db.state.upsert({
-        where: {
-          id: parseInt(process.env.APP_STATE_ID!),
-        },
-        create: {
-          id: parseInt(process.env.APP_STATE_ID!),
-          last_fetched_info: new Date(),
-        },
-        update: {
-          last_fetched_info: new Date(),
-        },
-      });
-    } catch (e) {
-      this.logger.error(
-        `Unexpected error while saving last_fetched_info into DB: ${e}`,
-      );
     }
 
     this.elapsedTime = performance.now() - this.startTime;
