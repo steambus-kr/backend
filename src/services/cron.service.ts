@@ -383,9 +383,8 @@ export class FetchGameInfoService {
       this.failureApp.base_info_build++;
       return { ok: false };
     }
-    let upserted; // too complicated to write type
     try {
-      upserted = await db.game.upsert({
+      await db.game.upsert({
         where: {
           app_id: appid,
         },
@@ -403,7 +402,7 @@ export class FetchGameInfoService {
       return { ok: false };
     }
 
-    this.logger.info(upserted, `Successfully saved app ${appid}`);
+    this.logger.info(`Successfully saved app ${appid}`);
     this.successApp++;
     return { ok: true };
   }
