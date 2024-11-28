@@ -16,12 +16,28 @@ const formatter = new Intl.DateTimeFormat("en", {
 let fetchGameInfoService: FetchGameInfoService | null = null;
 let playerCountService: PlayerCountService | null = null;
 
+interface IEachCronStatus {
+  skipCount: number;
+  lastSkip: boolean;
+}
+type CronNames = "fetchGameInfo" | "fetchPlayerCount";
+const cronStatus: Record<CronNames, IEachCronStatus> = {
+  fetchGameInfo: {
+    skipCount: 0,
+    lastSkip: false,
+  },
+  fetchPlayerCount: {
+    skipCount: 0,
+    lastSkip: false,
+  },
+};
+
 export const cron = new Elysia({ prefix: "/cron" })
   .use(logger.into())
   .use(
     cronPlugin({
       name: "fetchGameInfo",
-      pattern: "0 15 0 * * 1", // fetchPlayerCount와의 동시 실행으로 인한 rate limit을 피하기 위해 살짝 비틈
+      pattern: "0 15 0 * * 5", // fetchPlayerCount와의 동시 실행으로 인한 rate limit을 피하기 위해 살짝 비틈
       timezone: "Asia/Seoul",
       run: async () => {
         if (
@@ -34,8 +50,11 @@ export const cron = new Elysia({ prefix: "/cron" })
           logger.warn(
             `Failed to start fetchGameInfo because of existing instance.`,
           );
+          cronStatus.fetchGameInfo.lastSkip = true;
+          cronStatus.fetchGameInfo.skipCount++;
           return;
         }
+        cronStatus.fetchGameInfo.lastSkip = false;
         const startTime = new Date();
         logger.info(
           `Starting fetchGameInfo cron on ${formatter.format(startTime)}`,
@@ -99,8 +118,11 @@ export const cron = new Elysia({ prefix: "/cron" })
           logger.warn(
             `Failed to start playerCountService because of existing instance.`,
           );
+          cronStatus.fetchPlayerCount.lastSkip = true;
+          cronStatus.fetchPlayerCount.skipCount++;
           return;
         }
+        cronStatus.fetchPlayerCount.lastSkip = false;
         const startTime = new Date();
         logger.info(
           `Starting fetchPlayerCount cron on ${formatter.format(startTime)}`,
@@ -147,6 +169,9 @@ export const cron = new Elysia({ prefix: "/cron" })
       },
     }),
   )
+  .get("/status", async () => {
+    return cronStatus;
+  })
   .get("/health/fgi", async ({ error }) => {
     const { ok } = await FetchGameInfoService.healthCheck();
     if (!ok) return error(512);
