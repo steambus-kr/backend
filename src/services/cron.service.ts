@@ -701,6 +701,7 @@ export class PlayerCountService {
     );
     if (!response.ok) {
       switch (response.status) {
+        case 429:
         case 403:
           this.logger.error(
             { appid, status: response.status },
