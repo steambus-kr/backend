@@ -13,6 +13,9 @@ const formatter = new Intl.DateTimeFormat("en", {
   timeStyle: "medium",
 });
 
+let fetchGameInfoService: FetchGameInfoService | null = null;
+let playerCountService: PlayerCountService | null = null;
+
 export const cron = new Elysia({ prefix: "/cron" })
   .use(logger.into())
   .use(
@@ -27,36 +30,44 @@ export const cron = new Elysia({ prefix: "/cron" })
         ) {
           return;
         }
+        if (fetchGameInfoService !== null) {
+          logger.warn(
+            `Failed to start fetchGameInfo because of existing instance.`,
+          );
+          return;
+        }
         const startTime = new Date();
         logger.info(
           `Starting fetchGameInfo cron on ${formatter.format(startTime)}`,
         );
-        let service: FetchGameInfoService;
         try {
-          service = new FetchGameInfoService();
-          await service.init();
+          fetchGameInfoService = new FetchGameInfoService();
+          await fetchGameInfoService.init();
         } catch (e) {
           logger.fatal(`Error while initializing FetchGameInfoService: ${e}`);
+          fetchGameInfoService = null;
           return;
         }
         const zipper = new ZipperService();
-        let fileWillBeZipped: string[] = [];
+        let fileWillBeZipped: string[];
         try {
-          const result = await service.start();
-          fileWillBeZipped = result.logShouldBeZipped;
+          const result = await fetchGameInfoService.start();
+          fileWillBeZipped = [...result.logShouldBeZipped];
           logger.info(
             {
-              total: service.totalApp,
-              success: service.successApp,
-              failure: service.failureApp,
+              total: fetchGameInfoService.totalApp,
+              success: fetchGameInfoService.successApp,
+              failure: fetchGameInfoService.failureApp,
             },
-            `fetchGameInfo cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(service.elapsedTime)}.`,
+            `fetchGameInfo cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(fetchGameInfoService.elapsedTime)}.`,
           );
         } catch (e) {
           logger.error(
             `Unexpected error while running FetchGameinfoService: ${e}`,
           );
-          fileWillBeZipped = service.loggerPaths;
+          fileWillBeZipped = [...fetchGameInfoService.loggerPaths];
+        } finally {
+          fetchGameInfoService = null;
         }
         await Promise.all(
           fileWillBeZipped.map(async (filePath) => {
@@ -84,35 +95,43 @@ export const cron = new Elysia({ prefix: "/cron" })
         ) {
           return;
         }
+        if (playerCountService !== null) {
+          logger.warn(
+            `Failed to start playerCountService because of existing instance.`,
+          );
+          return;
+        }
         const startTime = new Date();
         logger.info(
           `Starting fetchPlayerCount cron on ${formatter.format(startTime)}`,
         );
-        let service: PlayerCountService;
         try {
-          service = new PlayerCountService();
+          playerCountService = new PlayerCountService();
         } catch (e) {
           logger.fatal(`Error while initializing PlayerCountService: ${e}`);
+          playerCountService = null;
           return;
         }
         const zipper = new ZipperService();
         let fileWillBeZipped: string[] = [];
         try {
-          const result = await service.start();
-          fileWillBeZipped = result.logShouldBeZipped;
+          const result = await playerCountService.start();
+          fileWillBeZipped = [...result.logShouldBeZipped];
           logger.info(
             {
-              total: service.totalApps,
-              success: service.successApps,
-              failure: service.failureApps,
+              total: playerCountService.totalApps,
+              success: playerCountService.successApps,
+              failure: playerCountService.failureApps,
             },
-            `fetchPlayerCount cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(service.elapsedTime)}.`,
+            `fetchPlayerCount cron started at ${formatter.format(startTime)} ended at ${formatter.format(new Date())}, took ${formatMs(playerCountService.elapsedTime)}.`,
           );
         } catch (e) {
           logger.error(
             `Unexpected error while running PlayerCountService: ${e}`,
           );
-          fileWillBeZipped = service.loggerPaths;
+          fileWillBeZipped = [...playerCountService.loggerPaths];
+        } finally {
+          playerCountService = null;
         }
         await Promise.all(
           fileWillBeZipped.map(async (filePath) => {
