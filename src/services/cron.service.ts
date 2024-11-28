@@ -508,6 +508,15 @@ export class FetchGameInfoService {
     }
 
     this.logger.info(`Successfully saved app ${appid}`);
+    try {
+      await db.outdatedGame.delete({
+        where: {
+          app_id: appid,
+        },
+      });
+    } catch (e) {
+      this.logger.warn(`App ${appid} data outdated data deletion failed: ${e}`);
+    }
     this.successApp++;
     return { ok: true };
   }
