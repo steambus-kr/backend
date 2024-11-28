@@ -27,6 +27,10 @@ model Game {
   review_ratio    Float?
 }
 
+model OutdatedGame {
+  app_id Int @id
+}
+
 model PlayerCount {
   app_id Int
   app    Game @relation(fields: [app_id], references: [app_id], onDelete: Cascade)
