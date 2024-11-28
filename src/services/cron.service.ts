@@ -30,7 +30,9 @@ type FailureReason =
   | "steamspy_json"
   | "base_info_build"
   | "upsert"
-  | "retry_failed";
+  | "retry_failed"
+  | "appdetail_http"
+  | "appdetail_json";
 export class FetchGameInfoService {
   /* debug purpose */
   totalApp: number;
@@ -59,6 +61,8 @@ export class FetchGameInfoService {
       web_description_parse: 0,
       web_header_image_parse: 0,
       retry_failed: 0,
+      appdetail_http: 0,
+      appdetail_json: 0,
     };
     this.successApp = 0;
     const loggerBuilt = fgiLoggerBuilder();
@@ -241,6 +245,7 @@ export class FetchGameInfoService {
           this.logger.error(
             `Unexpected HTTP error while fetching game ${appid} appDetails: ${data.status} ${data.statusText}`,
           );
+          this.failureApp["appdetail_http"]++;
           return { ok: false, willBeRetried: false };
       }
     }
@@ -259,6 +264,7 @@ export class FetchGameInfoService {
       };
     } catch (e) {
       this.logger.error(`Error while parsing ${appid} appDetails json: ${e}`);
+      this.failureApp["appdetail_json"]++;
       return { ok: false, willBeRetried: false };
     }
   }
