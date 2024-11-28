@@ -42,6 +42,7 @@ export class FetchGameInfoService {
   loggerPaths: string[];
   startTime: number;
   elapsedTime: number;
+  retrying: boolean;
 
   /* loop variables */
   modifiedSince: number | null;
@@ -70,6 +71,7 @@ export class FetchGameInfoService {
     this.loggerPaths = loggerBuilt.slice(1) as [string, string];
     this.startTime = 0;
     this.elapsedTime = 0;
+    this.retrying = false;
 
     this.modifiedSince = null;
     this.retryAppids = [];
@@ -457,6 +459,25 @@ export class FetchGameInfoService {
     }
   }
 
+  async getSummary() {
+    const elapsed = performance.now() - this.startTime;
+
+    return {
+      elapsed,
+      elapsedHuman: formatMs(elapsed),
+      iteration: this.iteration,
+      haveMoreResults: this.haveMoreResults,
+      lastAppId: this.lastAppid,
+      retrying: this.retrying,
+      willBeRetrieds: this.retryAppids.length,
+      processed: {
+        total: this.totalApp,
+        success: this.successApp,
+        failure: this.failureApp,
+      },
+    };
+  }
+
   async start() {
     this.startTime = performance.now();
     this.logger.info(
@@ -479,6 +500,7 @@ export class FetchGameInfoService {
     }
 
     // retry step
+    this.retrying = true;
     if (this.retryAppids.length > 0) {
       this.logger.info(`Starting retry for ${this.retryAppids.length} apps`);
       let retryIteration = 0;
@@ -508,6 +530,7 @@ export class FetchGameInfoService {
     } else {
       this.logger.info(`Skipping retry since no app marked as retryable`);
     }
+    this.retrying = false;
 
     try {
       // skipping check of APP_STATE_ID, it will be checked in init
@@ -594,8 +617,8 @@ export class PlayerCountService {
     this.chunkStat = {};
   }
 
-  async reportChunk() {
-    const chunkInfoSummary = Object.entries(this.chunkStat).reduce<{
+  async createChunkSummary() {
+    return Object.entries(this.chunkStat).reduce<{
       finishedChunks: number;
       currentChunk: string | number | null;
       waitingChunks: number;
@@ -612,7 +635,10 @@ export class PlayerCountService {
       },
       { finishedChunks: 0, currentChunk: null, waitingChunks: 0 },
     );
-    this.logger.info(chunkInfoSummary, `Chunk status report`);
+  }
+
+  async reportChunk() {
+    this.logger.info(await this.createChunkSummary(), `Chunk status report`);
   }
 
   static async healthCheck() {
@@ -736,6 +762,21 @@ export class PlayerCountService {
         },
       })
     ).map(({ app_id }) => app_id);
+  }
+
+  async getSummary() {
+    const elapsed = performance.now() - this.startTime;
+
+    return {
+      elapsed,
+      elapsedHuman: formatMs(elapsed),
+      chunk: await this.createChunkSummary(),
+      processed: {
+        total: this.totalApps,
+        success: this.successApps,
+        failure: this.failureApps,
+      },
+    };
   }
 
   async start() {

@@ -150,12 +150,24 @@ export const cron = new Elysia({ prefix: "/cron" })
   .get("/health/fgi", async ({ error }) => {
     const { ok } = await FetchGameInfoService.healthCheck();
     if (!ok) return error(512);
-    return { healthof: "/api/cron/health/fgi", ok: true };
+    return {
+      ok: true,
+      running:
+        fetchGameInfoService === null
+          ? false
+          : await fetchGameInfoService.getSummary(),
+    };
   })
   .get("/health/pc", async ({ error }) => {
     const { ok } = await PlayerCountService.healthCheck();
     if (!ok) return error(512);
-    return { healthof: "/api/cron/health/pc", ok: true };
+    return {
+      ok: true,
+      running:
+        playerCountService === null
+          ? false
+          : await playerCountService.getSummary(),
+    };
   })
   .guard({
     headers: t.Object({
