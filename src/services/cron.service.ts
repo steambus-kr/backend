@@ -14,6 +14,7 @@ import { unlink } from "node:fs/promises";
 
 const APP_CHUNK_SIZE = 100;
 const PC_CHUNK_SIZE = 200;
+const APPDETAIL_MAX_RETRY = 2;
 const APPDETAIL_TMR_DELAY = 600000; // 10min
 const PC_TMR_DELAY = 30000; // 30s
 const CHUNK_DELAY = 5000;
@@ -44,17 +45,16 @@ export class FetchGameInfoService {
   loggerPaths: string[];
   startTime: number;
   elapsedTime: number;
-  retrying: boolean;
 
   /* loop variables */
   modifiedSince: number | null;
-  retryAppids: number[];
   chunks: number[][];
   chunkStat: {
     waitingChunks: number;
     finishedChunks: number;
     currentChunkIdx: number;
   };
+  locks: Record<string, Promise<void>>;
 
   constructor() {
     this.totalApp = 0;
@@ -77,16 +77,15 @@ export class FetchGameInfoService {
     this.loggerPaths = loggerBuilt.slice(1) as [string, string];
     this.startTime = 0;
     this.elapsedTime = 0;
-    this.retrying = false;
 
     this.modifiedSince = null;
-    this.retryAppids = [];
     this.chunks = [];
     this.chunkStat = {
       finishedChunks: 0,
       waitingChunks: 0,
       currentChunkIdx: 0,
     };
+    this.locks = {};
   }
 
   static async healthCheck() {
@@ -135,10 +134,12 @@ export class FetchGameInfoService {
     return parseInt(owners.split(" .. ")[0].split(",").join(""));
   }
 
-  async markAsRetry(appid: number) {
-    if (!this.retryAppids.includes(appid)) {
-      this.retryAppids.push(appid);
-    }
+  async pauseAppdetail() {
+    if (!this.locks.appdetail)
+      this.locks.appdetail = new Promise((r) =>
+        setTimeout(r, APPDETAIL_TMR_DELAY),
+      );
+    await this.locks.appdetail;
   }
 
   /**
@@ -148,10 +149,18 @@ export class FetchGameInfoService {
    */
   async parseWeb(
     appid: number,
+    retryCount: number = 0,
   ): Promise<
     | { ok: true; data: Omit<IAppDetailsBody[number]["data"], "release_date"> }
-    | { ok: false; willBeRetried: boolean }
+    | { ok: false }
   > {
+    if (retryCount > APPDETAIL_MAX_RETRY) {
+      this.logger.error(
+        `Maximum retry (${retryCount}/${APPDETAIL_MAX_RETRY}) reached, breaking chain`,
+      );
+      this.failureApp["retry_failed"]++;
+      return { ok: false };
+    }
     const response = await fetch(
       `https://store.steampowered.com/app/${appid}`,
       {
@@ -171,10 +180,10 @@ export class FetchGameInfoService {
       );
       if (response.status === 403) {
         this.logger.warn(
-          `Rate Limited Steam Store (${appid}) request, will be tried again later`,
+          `Rate Limited Steam Store (${appid}) request, will be tried again`,
         );
-        await this.markAsRetry(appid);
-        return { ok: false, willBeRetried: true };
+        await this.pauseAppdetail();
+        return await this.parseWeb(appid, retryCount + 1);
       }
     }
     const { document } = new JSDOM(await response.text()).window;
@@ -198,21 +207,21 @@ export class FetchGameInfoService {
         `Steam Store (${appid}) request failed: name not found (maybe region lock?)`,
       );
       this.failureApp["region_lock"]++;
-      return { ok: false, willBeRetried: false };
+      return { ok: false };
     }
     if (!short_description) {
       this.logger.warn(
         `Steam Store (${appid}) request failed: short_description not found`,
       );
       this.failureApp["web_description_parse"]++;
-      return { ok: false, willBeRetried: false };
+      return { ok: false };
     }
     if (!header_image) {
       this.logger.warn(
         `Steam Store (${appid}) request failed: header_image not found`,
       );
       this.failureApp["web_header_image_parse"]++;
-      return { ok: false, willBeRetried: false };
+      return { ok: false };
     }
     if (genre_anchors.length === 0) {
       this.logger.debug(
@@ -236,10 +245,17 @@ export class FetchGameInfoService {
 
   async getAppDetails(
     appid: number,
+    retryCount: number = 0,
   ): Promise<
-    | { ok: true; data: IAppDetailsBody[number]["data"] }
-    | { ok: false; willBeRetried: boolean }
+    { ok: true; data: IAppDetailsBody[number]["data"] } | { ok: false }
   > {
+    if (retryCount > APPDETAIL_MAX_RETRY) {
+      this.logger.error(
+        `Maximum retry (${retryCount}/${APPDETAIL_MAX_RETRY}) reached, breaking chain`,
+      );
+      this.failureApp["retry_failed"]++;
+      return { ok: false };
+    }
     const data = await fetch(
       `http://store.steampowered.com/api/appdetails?appids=${appid}`,
     );
@@ -250,14 +266,14 @@ export class FetchGameInfoService {
           this.logger.warn(
             `HTTP error while fetching game ${appid} appDetails: ${data.status} ${data.statusText} (will be retried)`,
           );
-          await this.markAsRetry(appid);
-          return { ok: false, willBeRetried: true };
+          await this.pauseAppdetail();
+          return await this.getAppDetails(appid, retryCount + 1);
         default:
           this.logger.error(
             `Unexpected HTTP error while fetching game ${appid} appDetails: ${data.status} ${data.statusText}`,
           );
           this.failureApp["appdetail_http"]++;
-          return { ok: false, willBeRetried: false };
+          return { ok: false };
       }
     }
 
@@ -269,7 +285,6 @@ export class FetchGameInfoService {
         this.failureApp["appdetail_success"]++;
         return {
           ok: false,
-          willBeRetried: false,
         };
       }
       return {
@@ -284,24 +299,21 @@ export class FetchGameInfoService {
     } catch (e) {
       this.logger.error(`Error while parsing ${appid} appDetails json: ${e}`);
       this.failureApp["appdetail_json"]++;
-      return { ok: false, willBeRetried: false };
+      return { ok: false };
     }
   }
 
-  async saveGameInfo(
-    appid: number,
-  ): Promise<{ ok: boolean; willBeRetried: boolean }> {
+  async saveGameInfo(appid: number): Promise<{ ok: boolean }> {
     const appDetails_data = await this.getAppDetails(appid);
     if (!appDetails_data.ok) {
-      return { ok: false, willBeRetried: appDetails_data.willBeRetried };
+      return { ok: false };
     }
     const SteamCMD = await fetch(`https://api.steamcmd.net/v1/info/${appid}`);
     if (!SteamCMD.ok) {
       this.logger.warn(
-        `HTTP error while fetching game ${appid} SteamCMD: ${SteamCMD.status} ${SteamCMD.statusText} (will be retried)`,
+        `HTTP error while fetching game ${appid} SteamCMD: ${SteamCMD.status} ${SteamCMD.statusText}`,
       );
-      await this.markAsRetry(appid);
-      return { ok: false, willBeRetried: true };
+      return { ok: false };
     }
     let SteamCMD_data: ISteamCMDBody;
     let SteamCMD_releaseDate: `${number}` | undefined;
@@ -312,7 +324,7 @@ export class FetchGameInfoService {
     } catch (e) {
       this.logger.warn(`Error while parsing json from SteamCMD: ${e}`);
       this.failureApp.steamcmd_json++;
-      return { ok: false, willBeRetried: false };
+      return { ok: false };
     }
 
     const SteamSpy = await fetch(
@@ -320,10 +332,9 @@ export class FetchGameInfoService {
     );
     if (!SteamSpy.ok) {
       this.logger.warn(
-        `HTTP error while fetching game ${appid} SteamSpy: ${SteamSpy.status} ${SteamSpy.statusText} (will be retried)`,
+        `HTTP error while fetching game ${appid} SteamSpy: ${SteamSpy.status} ${SteamSpy.statusText}`,
       );
-      await this.markAsRetry(appid);
-      return { ok: false, willBeRetried: true };
+      return { ok: false };
     }
     let SteamSpy_data: ISteamSpy;
     try {
@@ -331,7 +342,7 @@ export class FetchGameInfoService {
     } catch (e) {
       this.logger.warn(`Error while parsing json from SteamSpy: ${e}`);
       this.failureApp.steamspy_json++;
-      return { ok: false, willBeRetried: false };
+      return { ok: false };
     }
 
     let baseInfo;
@@ -370,7 +381,7 @@ export class FetchGameInfoService {
         `Failed to build base information of app ${appid}: ${e}`,
       );
       this.failureApp.base_info_build++;
-      return { ok: false, willBeRetried: false };
+      return { ok: false };
     }
     let upserted; // too complicated to write type
     try {
@@ -389,12 +400,12 @@ export class FetchGameInfoService {
     } catch (e) {
       this.logger.error(`App ${appid} data upserting failed: ${e}`);
       this.failureApp.upsert++;
-      return { ok: false, willBeRetried: false };
+      return { ok: false };
     }
 
     this.logger.info(upserted, `Successfully saved app ${appid}`);
     this.successApp++;
-    return { ok: true, willBeRetried: false };
+    return { ok: true };
   }
 
   async buildAppChunk() {
@@ -467,8 +478,6 @@ export class FetchGameInfoService {
     return {
       elapsed,
       elapsedHuman: formatMs(elapsed),
-      retrying: this.retrying,
-      willBeRetrieds: this.retryAppids.length,
       chunks: this.chunkStat,
       processed: {
         total: this.totalApp,
@@ -492,60 +501,17 @@ export class FetchGameInfoService {
       this.chunkStat.waitingChunks--;
       this.chunkStat.currentChunkIdx = parseInt(idx);
       try {
-        const response = await Promise.all(
+        await Promise.all(
           chunk.map((appid) => {
             return this.saveGameInfo(appid);
           }),
         );
-        const willBeRetrieds = response.filter(
-          ({ ok, willBeRetried }) => !ok && willBeRetried,
-        );
-        if (willBeRetrieds.length > 0) {
-          this.logger.warn(
-            `Delaying ${Math.round(APPDETAIL_TMR_DELAY / 1000)}s after chunk ${idx} due to ${Math.round(willBeRetrieds.length / APP_CHUNK_SIZE) * 100}% (${willBeRetrieds.length} / ${APP_CHUNK_SIZE}) failed requests, will be continued at ${new Intl.DateTimeFormat(["ko"], { timeStyle: "medium", hour12: false }).format(new Date(new Date().getTime() + APPDETAIL_TMR_DELAY))}.`,
-          );
-          await timeout(APPDETAIL_TMR_DELAY);
-        } else {
-          await timeout(CHUNK_DELAY);
-        }
+        await timeout(CHUNK_DELAY);
       } catch (e) {
         this.logger.error(`Unexpected error on chunk ${idx}: ${e}`);
       }
       this.chunkStat.finishedChunks++;
     }
-
-    // retry step
-    this.retrying = true;
-    if (this.retryAppids.length > 0) {
-      this.logger.info(`Starting retry for ${this.retryAppids.length} apps`);
-      let retryIteration = 0;
-      const maxRetry = 20;
-      const retryDelay = 180; // in second
-      // ideally maximum 1800s (30min)
-      while (this.retryAppids.length > 0) {
-        if (retryIteration >= maxRetry) {
-          this.logger.error(
-            `Breaking, reached maximum retry(${retryIteration}/${maxRetry}). ${this.retryAppids.length} items not saved.`,
-          );
-          this.failureApp.retry_failed = this.retryAppids.length;
-          break;
-        }
-        retryIteration++;
-        this.logger.info(`Retry iteration ${retryIteration}`);
-        let successApps: number[] = [];
-        for (const appid of this.retryAppids) {
-          const { ok } = await this.saveGameInfo(appid);
-          if (ok) successApps.push(appid);
-        }
-        this.retryAppids = this.retryAppids.filter(
-          (id) => !successApps.includes(id),
-        );
-        await timeout(retryDelay * 1000);
-      }
-    } else {
-      this.logger.info(`Skipping retry since no app marked as retryable`);
-    }
-    this.retrying = false;
 
     try {
       // skipping check of APP_STATE_ID, it will be checked in init
