@@ -227,9 +227,9 @@ export const cron = new Elysia({ prefix: "/cron" })
   })
   .put("/markOutdated", async ({ error, headers }) => {
     if (
-      process.env.NODE_ENV !== "development" ||
-      !headers["X-ADMIN-KEY"] ||
-      headers["X-ADMIN-KEY"] !== process.env.ADMIN_KEY
+      process.env.NODE_ENV !== "development" &&
+      (!headers["X-ADMIN-KEY"] ||
+        headers["X-ADMIN-KEY"] !== process.env.ADMIN_KEY)
     ) {
       return error(400);
     }
@@ -239,9 +239,9 @@ export const cron = new Elysia({ prefix: "/cron" })
   })
   .put("/fetchGameInfo", async ({ error, headers }) => {
     if (
-      process.env.NODE_ENV !== "development" ||
-      !headers["X-ADMIN-KEY"] ||
-      headers["X-ADMIN-KEY"] !== process.env.ADMIN_KEY
+      process.env.NODE_ENV !== "development" &&
+      (!headers["X-ADMIN-KEY"] ||
+        headers["X-ADMIN-KEY"] !== process.env.ADMIN_KEY)
     ) {
       return error(400);
     }
@@ -252,9 +252,9 @@ export const cron = new Elysia({ prefix: "/cron" })
   })
   .put("/fetchPlayerCount", async ({ error, headers }) => {
     if (
-      process.env.NODE_ENV !== "development" ||
-      !headers["X-ADMIN-KEY"] ||
-      headers["X-ADMIN-KEY"] !== process.env.ADMIN_KEY
+      process.env.NODE_ENV !== "development" &&
+      (!headers["X-ADMIN-KEY"] ||
+        headers["X-ADMIN-KEY"] !== process.env.ADMIN_KEY)
     ) {
       return error(400);
     }
