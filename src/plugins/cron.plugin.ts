@@ -225,6 +225,18 @@ export const cron = new Elysia({ prefix: "/cron" })
       "X-ADMIN-KEY": t.Optional(t.String()),
     }),
   })
+  .put("/markOutdated", async ({ error, headers }) => {
+    if (
+      process.env.NODE_ENV !== "development" ||
+      !headers["X-ADMIN-KEY"] ||
+      headers["X-ADMIN-KEY"] !== process.env.ADMIN_KEY
+    ) {
+      return error(400);
+    }
+    const service = new MarkOutdatedService();
+    const fileWillBeZipped = await service.start();
+    await fileZipper(...fileWillBeZipped);
+  })
   .put("/fetchGameInfo", async ({ error, headers }) => {
     if (
       process.env.NODE_ENV !== "development" ||
