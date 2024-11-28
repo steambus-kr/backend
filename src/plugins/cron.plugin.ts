@@ -33,6 +33,19 @@ const cronStatus: Record<CronNames, IEachCronStatus> = {
   },
 };
 
+async function fileZipper(...files: string[]) {
+  const zipper = new ZipperService();
+  await Promise.all(
+    files.map(async (filePath) => {
+      const r = await zipper.zipFile(filePath);
+      if (!r.ok) {
+        logger.warn(`file not zipped due to unexpected error: ${filePath}`);
+      }
+      return r;
+    }),
+  );
+}
+
 export const cron = new Elysia({ prefix: "/cron" })
   .use(logger.into())
   .use(
@@ -54,7 +67,6 @@ export const cron = new Elysia({ prefix: "/cron" })
           logger.fatal(`Error while initializing MarkOutdatedService: ${e}`);
           return;
         }
-        const zipper = new ZipperService();
         let fileWillBeZipped: string[];
         try {
           fileWillBeZipped = [...(await service.start())];
@@ -64,17 +76,7 @@ export const cron = new Elysia({ prefix: "/cron" })
           );
           fileWillBeZipped = [...service.loggerPaths];
         }
-        await Promise.all(
-          fileWillBeZipped.map(async (filePath) => {
-            const r = await zipper.zipFile(filePath);
-            if (!r.ok) {
-              logger.warn(
-                `file not zipped due to unexpected error: ${filePath}`,
-              );
-            }
-            return r;
-          }),
-        );
+        await fileZipper(...fileWillBeZipped);
       },
     }),
   )
@@ -111,7 +113,6 @@ export const cron = new Elysia({ prefix: "/cron" })
           fetchGameInfoService = null;
           return;
         }
-        const zipper = new ZipperService();
         let fileWillBeZipped: string[];
         try {
           const result = await fetchGameInfoService.start();
@@ -133,17 +134,7 @@ export const cron = new Elysia({ prefix: "/cron" })
         } finally {
           fetchGameInfoService = null;
         }
-        await Promise.all(
-          fileWillBeZipped.map(async (filePath) => {
-            const r = await zipper.zipFile(filePath);
-            if (!r.ok) {
-              logger.warn(
-                `file not zipped due to unexpected error: ${filePath}`,
-              );
-            }
-            return r;
-          }),
-        );
+        await fileZipper(...fileWillBeZipped);
       },
     }),
   )
@@ -179,7 +170,6 @@ export const cron = new Elysia({ prefix: "/cron" })
           playerCountService = null;
           return;
         }
-        const zipper = new ZipperService();
         let fileWillBeZipped: string[] = [];
         try {
           const result = await playerCountService.start();
@@ -201,17 +191,7 @@ export const cron = new Elysia({ prefix: "/cron" })
         } finally {
           playerCountService = null;
         }
-        await Promise.all(
-          fileWillBeZipped.map(async (filePath) => {
-            const r = await zipper.zipFile(filePath);
-            if (!r.ok) {
-              logger.warn(
-                `file not zipped due to unexpected error: ${filePath}`,
-              );
-            }
-            return r;
-          }),
-        );
+        await fileZipper(...fileWillBeZipped);
       },
     }),
   )
@@ -255,7 +235,8 @@ export const cron = new Elysia({ prefix: "/cron" })
     }
     const service = new FetchGameInfoService();
     await service.init();
-    await service.start();
+    const { logShouldBeZipped } = await service.start();
+    await fileZipper(...logShouldBeZipped);
   })
   .put("/fetchPlayerCount", async ({ error, headers }) => {
     if (
@@ -267,7 +248,8 @@ export const cron = new Elysia({ prefix: "/cron" })
     }
 
     const service = new PlayerCountService();
-    await service.start();
+    const { logShouldBeZipped } = await service.start();
+    await fileZipper(...logShouldBeZipped);
   });
 /*
   disabling it since this endpoint features can interrupt log file compression
