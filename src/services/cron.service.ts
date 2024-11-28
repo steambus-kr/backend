@@ -703,6 +703,15 @@ export class PlayerCountService {
     );
     if (!response.ok) {
       switch (response.status) {
+        case 404:
+          this.logger.info(
+            `404 responsed on app ${appid}, returning 0 instead.`,
+          );
+          return {
+            ok: true,
+            appId: appid,
+            count: 0,
+          };
         case 429:
         case 403:
           this.logger.error(
