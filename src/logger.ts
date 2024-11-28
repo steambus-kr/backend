@@ -57,50 +57,7 @@ export const logger = createPinoLogger({
   stream,
 });
 
-export function fgiLoggerBuilder() {
-  const nowDate = new Intl.DateTimeFormat("ko", {
-    dateStyle: "short",
-    timeZone: "Asia/Seoul",
-  })
-    .format(new Date())
-    .replaceAll(/\.\s?/g, "-")
-    .slice(0, -1);
-  const logDir = join(logRoot, "fgi.out.d");
-  const errorLogDir = join(logRoot, "fgi.error.d");
-  const logPath = join(logDir, nowDate + ".out");
-  const errorLogPath = join(errorLogDir, nowDate + ".out");
-  // yy. mm. dd -> yy-mm-dd.out
-  if (!existsSync(logDir)) {
-    mkdirSync(logDir, { recursive: true });
-  }
-  if (!existsSync(errorLogDir)) {
-    mkdirSync(errorLogDir, { recursive: true });
-  }
-  return [
-    createPinoLogger({
-      level: "debug",
-      stream: pino.multistream([
-        {
-          level: "debug",
-          stream: createWriteStream(logPath),
-        },
-        {
-          level: "warn",
-          stream: createWriteStream(errorLogPath),
-        },
-        {
-          level: "info",
-          stream: pretty({ colorize: true }),
-        },
-      ]),
-      name: "FetchGameInfoService",
-    }),
-    logPath,
-    errorLogPath,
-  ] as const;
-}
-
-export function pcLoggerBuilder() {
+function makeLoggerPath(id: string): [string, string] {
   const now = new Date();
   const nowDate = new Intl.DateTimeFormat("ko", {
     dateStyle: "short",
@@ -116,17 +73,24 @@ export function pcLoggerBuilder() {
   })
     .format(now)
     .replaceAll(":", "-");
-  const logDir = join(logRoot, "pc", `${nowDate}.out.d`);
-  const errorLogDir = join(logRoot, "pc", `${nowDate}.error.d`);
+  const logDir = join(logRoot, id, `${nowDate}.out.d`);
+  const errorLogDir = join(logRoot, id, `${nowDate}.error.d`);
   const logPath = join(logDir, nowTime + ".out");
   const errorLogPath = join(errorLogDir, nowTime + ".out");
-  // yy. mm. dd -> yy-mm-dd
   if (!existsSync(logDir)) {
     mkdirSync(logDir, { recursive: true });
   }
   if (!existsSync(errorLogDir)) {
     mkdirSync(errorLogDir, { recursive: true });
   }
+  return [logPath, errorLogPath];
+}
+
+function buildGeneralLogger(
+  logPath: string,
+  errorLogPath: string,
+  loggerName: string,
+) {
   return [
     createPinoLogger({
       level: "debug",
@@ -144,9 +108,24 @@ export function pcLoggerBuilder() {
           stream: pretty({ colorize: true }),
         },
       ]),
-      name: "PlayerCountService",
+      name: loggerName,
     }),
     logPath,
     errorLogPath,
   ] as const;
+}
+
+export function moLoggerBuilder() {
+  const loggerPaths = makeLoggerPath("mo");
+  return buildGeneralLogger(...loggerPaths, "MarkOutdateService");
+}
+
+export function fgiLoggerBuilder() {
+  const loggerPaths = makeLoggerPath("fgi");
+  return buildGeneralLogger(...loggerPaths, "FetchGameInfoService");
+}
+
+export function pcLoggerBuilder() {
+  const loggerPaths = makeLoggerPath("pc");
+  return buildGeneralLogger(...loggerPaths, "PlayerCountService");
 }
