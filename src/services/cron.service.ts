@@ -49,6 +49,11 @@ export class FetchGameInfoService {
   modifiedSince: number | null;
   retryAppids: number[];
   chunks: number[][];
+  chunkStat: {
+    waitingChunks: number;
+    finishedChunks: number;
+    currentChunkIdx: number;
+  };
 
   constructor() {
     this.totalApp = 0;
@@ -75,6 +80,11 @@ export class FetchGameInfoService {
     this.modifiedSince = null;
     this.retryAppids = [];
     this.chunks = [];
+    this.chunkStat = {
+      finishedChunks: 0,
+      waitingChunks: 0,
+      currentChunkIdx: 0,
+    };
   }
 
   static async healthCheck() {
@@ -449,6 +459,7 @@ export class FetchGameInfoService {
       elapsedHuman: formatMs(elapsed),
       retrying: this.retrying,
       willBeRetrieds: this.retryAppids.length,
+      chunks: this.chunkStat,
       processed: {
         total: this.totalApp,
         success: this.successApp,
@@ -464,9 +475,12 @@ export class FetchGameInfoService {
     );
 
     await this.buildAppChunk();
+    this.chunkStat.waitingChunks = this.chunks.length;
 
     for (const [idx, chunk] of Object.entries(this.chunks)) {
       this.logger.info(`Requesting chunk ${idx}`);
+      this.chunkStat.waitingChunks--;
+      this.chunkStat.currentChunkIdx = parseInt(idx);
       try {
         const response = await Promise.all(
           chunk.map((appid) => {
@@ -487,6 +501,7 @@ export class FetchGameInfoService {
       } catch (e) {
         this.logger.error(`Unexpected error on chunk ${idx}: ${e}`);
       }
+      this.chunkStat.finishedChunks++;
     }
 
     // retry step
