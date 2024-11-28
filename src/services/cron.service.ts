@@ -17,6 +17,7 @@ const PC_CHUNK_SIZE = 200;
 const APPDETAIL_TMR_DELAY = 600000; // 10min
 const PC_TMR_DELAY = 30000; // 30s
 const CHUNK_DELAY = 5000;
+const PC_MAX_RETRY = 2;
 
 const fetchHeader = {
   "Accepted-Language": "ko-KR,en-US;q=0.9,en;q=0.8",
@@ -680,7 +681,18 @@ export class PlayerCountService {
     this.failureApps[status]++;
   }
 
-  async getPlayerCount(appid: number): Promise<IPlayerCountResponse> {
+  async getPlayerCount(
+    appid: number,
+    retryCount: number = 0,
+  ): Promise<IPlayerCountResponse> {
+    if (retryCount > PC_MAX_RETRY) {
+      this.logger.error(
+        `Maximum retry (${retryCount}/${PC_MAX_RETRY}) reached, breaking chain`,
+      );
+      return {
+        ok: false,
+      };
+    }
     while (this.waitSignal !== null) {
       await this.waitSignal;
     }
@@ -695,7 +707,7 @@ export class PlayerCountService {
             `rate limited while getting response of app ${appid}, will be retried`,
           );
           await this.waitForRateLimit();
-          return await this.getPlayerCount(appid);
+          return await this.getPlayerCount(appid, retryCount + 1);
         default:
           await this.addFailure(response.status);
           this.logger.error(
