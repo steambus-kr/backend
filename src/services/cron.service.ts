@@ -579,7 +579,11 @@ export class PlayerCountService {
   startTime: number;
   elapsedTime: number;
 
-  chunkStat: Record<number, "waiting" | "pending" | "done">;
+  chunkStat: {
+    finishedChunks: number;
+    waitingChunks: number;
+    currentChunkIndex: number;
+  };
   waitSignal: Promise<void> | null;
 
   constructor() {
@@ -604,31 +608,15 @@ export class PlayerCountService {
       this.logger.error("STEAM_KEY not set");
     }
 
-    this.chunkStat = {};
-  }
-
-  async createChunkSummary() {
-    return Object.entries(this.chunkStat).reduce<{
-      finishedChunks: number;
-      currentChunk: string | number | null;
-      waitingChunks: number;
-    }>(
-      (p, [chunkId, status]) => {
-        switch (status) {
-          case "waiting":
-            return { ...p, waitingChunks: p.waitingChunks + 1 };
-          case "pending":
-            return { ...p, currentChunk: chunkId };
-          case "done":
-            return { ...p, finishedChunks: p.finishedChunks + 1 };
-        }
-      },
-      { finishedChunks: 0, currentChunk: null, waitingChunks: 0 },
-    );
+    this.chunkStat = {
+      finishedChunks: 0,
+      waitingChunks: 0,
+      currentChunkIndex: 0,
+    };
   }
 
   async reportChunk() {
-    this.logger.info(await this.createChunkSummary(), `Chunk status report`);
+    this.logger.info(this.chunkStat, `Chunk status report`);
   }
 
   static async healthCheck() {
@@ -787,7 +775,7 @@ export class PlayerCountService {
     return {
       elapsed,
       elapsedHuman: formatMs(elapsed),
-      chunk: await this.createChunkSummary(),
+      chunk: this.chunkStat,
       processed: {
         total: this.totalApps,
         success: this.successApps,
@@ -803,21 +791,20 @@ export class PlayerCountService {
     this.logger.info(
       `Starting PlayerCount fetch on ${startDate.toLocaleTimeString()}, total ${maxIdx + 1} chunks`,
     );
-    Array.from(new Array(maxIdx + 10)).forEach((_, i) => {
-      this.chunkStat[i] = "waiting";
-    });
+    this.chunkStat.waitingChunks = maxIdx + 1;
     const chunkReporter = setInterval(() => {
       this.reportChunk();
     }, 10000);
     for (let i = 0; i <= maxIdx; i++) {
-      this.chunkStat[i] = "pending";
+      this.chunkStat.waitingChunks--;
+      this.chunkStat.currentChunkIndex = i;
       const chunkAppIds = await this.getChunk(i);
       this.totalApps += chunkAppIds.length;
       const result = (
         await Promise.all(
           chunkAppIds.map((appId) => this.getPlayerCount(appId)),
         ).then((r) => {
-          this.chunkStat[i] = "done";
+          this.chunkStat.finishedChunks++;
           return r;
         })
       ).filter<IPlayerCountSuccess>((r): r is IPlayerCountSuccess => r.ok);
