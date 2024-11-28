@@ -33,6 +33,7 @@ type FailureReason =
   | "upsert"
   | "retry_failed"
   | "appdetail_http"
+  | "appdetail_success"
   | "appdetail_json";
 export class FetchGameInfoService {
   /* debug purpose */
@@ -67,6 +68,7 @@ export class FetchGameInfoService {
       web_header_image_parse: 0,
       retry_failed: 0,
       appdetail_http: 0,
+      appdetail_success: 0,
       appdetail_json: 0,
     };
     this.successApp = 0;
@@ -243,7 +245,7 @@ export class FetchGameInfoService {
     );
     if (!data.ok) {
       switch (data.status) {
-        case 422:
+        case 429:
         case 403:
           this.logger.warn(
             `HTTP error while fetching game ${appid} appDetails: ${data.status} ${data.statusText} (will be retried)`,
@@ -262,6 +264,14 @@ export class FetchGameInfoService {
     try {
       const json: IAppDetailsBody<{ id: number; description: string }> =
         await data.json();
+      if (!json[appid].success) {
+        this.logger.error(`Success is not true on ${appid} appDetails json`);
+        this.failureApp["appdetail_success"]++;
+        return {
+          ok: false,
+          willBeRetried: false,
+        };
+      }
       return {
         ok: true,
         data: {
