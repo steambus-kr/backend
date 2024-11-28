@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import { cron as cronPlugin } from "@elysiajs/cron";
 import {
   FetchGameInfoService,
+  MarkOutdatedService,
   PlayerCountService,
   ZipperService,
 } from "@/services/cron.service";
@@ -36,8 +37,51 @@ export const cron = new Elysia({ prefix: "/cron" })
   .use(logger.into())
   .use(
     cronPlugin({
+      name: "markOutdate",
+      pattern: "0 0 0 * * *",
+      timezone: "Asia/Seoul",
+      run: async () => {
+        if (
+          process.env.DISABLE_MARK_OUTDATE &&
+          process.env.DISABLE_MARK_OUTDATE !== "false"
+        ) {
+          return;
+        }
+        let service: MarkOutdatedService;
+        try {
+          service = new MarkOutdatedService();
+        } catch (e) {
+          logger.fatal(`Error while initializing MarkOutdatedService: ${e}`);
+          return;
+        }
+        const zipper = new ZipperService();
+        let fileWillBeZipped: string[];
+        try {
+          fileWillBeZipped = [...(await service.start())];
+        } catch (e) {
+          logger.error(
+            `Unexpected error while running MarkOutdatedService: ${e}`,
+          );
+          fileWillBeZipped = [...service.loggerPaths];
+        }
+        await Promise.all(
+          fileWillBeZipped.map(async (filePath) => {
+            const r = await zipper.zipFile(filePath);
+            if (!r.ok) {
+              logger.warn(
+                `file not zipped due to unexpected error: ${filePath}`,
+              );
+            }
+            return r;
+          }),
+        );
+      },
+    }),
+  )
+  .use(
+    cronPlugin({
       name: "fetchGameInfo",
-      pattern: "0 15 0 * * 5", // fetchPlayerCount와의 동시 실행으로 인한 rate limit을 피하기 위해 살짝 비틈
+      pattern: "0 0 * * * *",
       timezone: "Asia/Seoul",
       run: async () => {
         if (

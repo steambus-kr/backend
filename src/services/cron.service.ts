@@ -1,4 +1,4 @@
-import { fgiLoggerBuilder, pcLoggerBuilder } from "@/logger";
+import { fgiLoggerBuilder, pcLoggerBuilder, moLoggerBuilder } from "@/logger";
 import { db } from "@/db";
 import { JSDOM } from "jsdom";
 import {
@@ -23,6 +23,111 @@ const PC_MAX_RETRY = 2;
 const fetchHeader = {
   "Accepted-Language": "ko-KR,en-US;q=0.9,en;q=0.8",
 };
+
+export class MarkOutdatedService {
+  logger: ReturnType<typeof moLoggerBuilder>[0];
+  loggerPaths: string[];
+
+  constructor() {
+    const loggerBuilt = moLoggerBuilder();
+    this.logger = loggerBuilt[0];
+    this.loggerPaths = loggerBuilt.slice(1) as [string, string];
+  }
+
+  async getAppList(since: number | null): Promise<number[]> {
+    this.logger.info(`Getting outdated app list since ${since}`);
+    let continue_with: number | null = null;
+    let haveMoreResults: boolean = true;
+    const appIds: number[] = [];
+    while (haveMoreResults) {
+      const GetAppList_SearchParams = new URLSearchParams([
+        ["key", process.env.STEAM_KEY!],
+        ["include_games", "true"],
+        ["include_dlc", "false"],
+        ["include_software", "false"],
+        ["include_videos", "false"],
+        ["include_hardware", "false"],
+      ]);
+      if (since !== null)
+        GetAppList_SearchParams.append(
+          "if_modified_since",
+          (since / 1000).toString(),
+        );
+      if (continue_with !== null)
+        GetAppList_SearchParams.append("last_appid", continue_with.toString());
+      const GetAppList = await fetch(
+        `https://api.steampowered.com/IStoreService/GetAppList/v1?${GetAppList_SearchParams.toString()}`,
+      );
+      if (!GetAppList.ok) {
+        this.logger.error(
+          `HTTP error while fetching game list: ${GetAppList.status} ${GetAppList.statusText}`,
+        );
+        return [];
+      }
+      let GetAppList_data: IGetAppListBody["response"];
+      try {
+        GetAppList_data = ((await GetAppList.json()) as IGetAppListBody)
+          .response;
+      } catch (e) {
+        this.logger.error(`Error while parsing json from GetAppList: ${e}`);
+        return [];
+      }
+      this.logger.info(
+        `Got GetAppList response: ${GetAppList_data.apps.length} games, have_more_results=${GetAppList_data.have_more_results}, last_appid=${GetAppList_data.last_appid}`,
+      );
+      haveMoreResults = GetAppList_data.have_more_results;
+      continue_with = GetAppList_data.last_appid;
+      GetAppList_data.apps.forEach(({ appid }) => {
+        appIds.push(appid);
+      });
+    }
+    this.logger.info(`Got ${appIds.length} apps`);
+    return appIds;
+  }
+
+  async markAppAsOutdated(appId: number) {
+    await db.outdatedGame.upsert({
+      where: {
+        app_id: appId,
+      },
+      create: {
+        app_id: appId,
+      },
+      update: {
+        app_id: appId,
+      },
+    });
+  }
+
+  async start() {
+    if (!process.env.APP_STATE_ID) {
+      this.logger.error("APP_STATE_ID not set");
+      throw new Error("APP_STATE_ID not set");
+    }
+    if (!process.env.STEAM_KEY) {
+      this.logger.error("STEAM_KEY not set");
+      throw new Error("STEAM_KEY not set");
+    }
+    const db_modified_since = (
+      await db.state.findUnique({
+        where: { id: parseInt(process.env.APP_STATE_ID) },
+        select: { last_fetched_info: true },
+      })
+    )?.last_fetched_info;
+    const modifiedSince = (
+      db_modified_since ?? { getTime: () => null }
+    ).getTime();
+
+    const appIds = await this.getAppList(modifiedSince);
+    await Promise.all(
+      appIds.map(async (appId) => {
+        await this.markAppAsOutdated(appId);
+      }),
+    );
+    this.logger.info(`Marked ${appIds.length} apps as outdated`);
+    return this.loggerPaths;
+  }
+}
 
 type FailureReason =
   | "region_lock"
@@ -407,57 +512,20 @@ export class FetchGameInfoService {
     return { ok: true };
   }
 
+  /**
+   * 원래 여러 청크를 받아왔으나, MarkOutdated 서비스를 도입함으로서 1시간에 1번 1청크씩 처리합니다.
+   * 따라서 이 함수는 1청크만 빌드합니다.
+   */
   async buildAppChunk() {
     this.logger.info(
       `Building app chunks from app list${this.modifiedSince ? ` changed since ${this.modifiedSince}` : ""}`,
     );
 
-    let continue_with: number | null = null;
-    let haveMoreResults: boolean = true;
-    const appIds: number[] = [];
-    while (haveMoreResults) {
-      const GetAppList_SearchParams = new URLSearchParams([
-        ["key", process.env.STEAM_KEY!],
-        ["include_games", "true"],
-        ["include_dlc", "false"],
-        ["include_software", "false"],
-        ["include_videos", "false"],
-        ["include_hardware", "false"],
-      ]);
-      if (this.modifiedSince !== null)
-        GetAppList_SearchParams.append(
-          "if_modified_since",
-          (this.modifiedSince / 1000).toString(),
-        );
-      if (continue_with !== null)
-        GetAppList_SearchParams.append("last_appid", continue_with.toString());
-      const GetAppList = await fetch(
-        `https://api.steampowered.com/IStoreService/GetAppList/v1?${GetAppList_SearchParams.toString()}`,
-      );
-      if (!GetAppList.ok) {
-        this.logger.error(
-          `HTTP error while fetching game list: ${GetAppList.status} ${GetAppList.statusText}`,
-        );
-        return { ok: false };
-      }
-      let GetAppList_data: IGetAppListBody["response"];
-      try {
-        GetAppList_data = ((await GetAppList.json()) as IGetAppListBody)
-          .response;
-      } catch (e) {
-        this.logger.error(`Error while parsing json from GetAppList: ${e}`);
-        return null;
-      }
-      this.logger.info(
-        `Got GetAppList response: ${GetAppList_data.apps.length} games, have_more_results=${GetAppList_data.have_more_results}, last_appid=${GetAppList_data.last_appid}`,
-      );
-      this.totalApp += GetAppList_data.apps.length;
-      haveMoreResults = GetAppList_data.have_more_results;
-      continue_with = GetAppList_data.last_appid;
-      GetAppList_data.apps.forEach(({ appid }) => {
-        appIds.push(appid);
-      });
-    }
+    const appIds = (
+      await db.outdatedGame.findMany({
+        take: APP_CHUNK_SIZE,
+      })
+    ).map(({ app_id }) => app_id);
 
     for (const [idx, appid] of Object.entries(appIds)) {
       const chunkIdx = Math.floor(parseInt(idx) / APP_CHUNK_SIZE);
