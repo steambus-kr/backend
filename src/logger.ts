@@ -12,7 +12,6 @@ import { Glob } from "bun";
 import { gzip } from "node-gzip";
 
 const logRoot = resolve(process.env.LOG_ROOT ?? "logs");
-console.log(logRoot);
 
 // 로그 초기화 및 기존 로그 압축
 if (existsSync(logRoot)) {
