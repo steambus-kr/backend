@@ -18,7 +18,7 @@ export const cron = new Elysia({ prefix: "/cron" })
   .use(
     cronPlugin({
       name: "fetchGameInfo",
-      pattern: "0 15 0 * * *", // fetchPlayerCount와의 동시 실행으로 인한 rate limit을 피하기 위해 살짝 비틈
+      pattern: "0 15 0 * * 1", // fetchPlayerCount와의 동시 실행으로 인한 rate limit을 피하기 위해 살짝 비틈
       timezone: "Asia/Seoul",
       run: async () => {
         if (
