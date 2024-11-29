@@ -1,15 +1,7 @@
-# Elysia with Bun runtime
+# Deprecated
 
-## Getting Started
-To get started with this template, simply paste this command into your terminal:
-```bash
-bun create elysia ./elysia-example
-```
+이 레포지토리는 심한 메모리 누수와 코드의 구조적 문제로 인해 폐기되었습니다.
 
-## Development
-To start the development server run:
-```bash
-bun run dev
-```
+메모리 누수는 v1.0.0 버전부터 확인되었으며, v0.6.1에서는 발생하지 않은 것으로 추정됩니다.
 
-Open http://localhost:3000/ with your browser to see the result.
+최신 소스코드를 보시고 싶으시다면 [backend-nestjs](https://github.com/steambus-kr/backend-nestjs) 레포지토리로 이동해주세요.
